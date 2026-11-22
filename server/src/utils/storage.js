@@ -12,6 +12,7 @@ const ALLOWED_MIME_TYPES = new Set([
 let cloudinaryConfigured = false;
 
 export function isCloudinaryConfigured() {
+  if (env.isTest) return false;
   return Boolean(
     env.cloudinaryUrl ||
       (env.cloudinaryCloudName &&
@@ -105,15 +106,18 @@ function uploadBufferToCloudinary(buffer, cleanName) {
             width: 1600,
             crop: 'limit',
             quality: 'auto:good',
-            fetch_format: 'auto',
           },
         ],
       },
       (error, result) => {
         if (error || !result?.secure_url) {
-          return reject(
-            error || new Error('Cloudinary upload did not return a secure URL.')
-          );
+          const message =
+            error?.message ||
+            error?.error?.message ||
+            'Cloudinary upload failed. Check your Cloudinary API key permissions.';
+          const wrapped = new Error(message);
+          wrapped.status = error?.http_code && error.http_code >= 400 && error.http_code < 500 ? 502 : 500;
+          return reject(wrapped);
         }
         return resolve({
           url: result.secure_url,
