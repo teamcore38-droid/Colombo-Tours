@@ -1,0 +1,151 @@
+@import "tailwindcss";
+
+@custom-variant dark (&:where(.dark, .dark *, [data-theme="dark"], [data-theme="dark"] *));
+
+:root {
+  --bg-page: #f6f3ec;
+  --bg-surface: #ffffff;
+  --bg-card: #ffffff;
+  --bg-card-elevated: #faf8f3;
+  --bg-input: #f1ede3;
+  --bg-pill: #efeae0;
+  --text-primary: #15151a;
+  --text-secondary: #535049;
+  --text-muted: #78736a;
+  --gold-accent: #9b7320;
+  --gold-bright: #c99d36;
+  --gold-soft-bg: rgba(185, 140, 42, 0.11);
+  --border-subtle: rgba(21, 21, 26, 0.09);
+  --border-gold: rgba(168, 125, 36, 0.28);
+  --border-gold-strong: rgba(168, 125, 36, 0.56);
+  --shadow-card: 0 12px 32px -16px rgba(21, 18, 10, 0.14);
+  --shadow-gold: 0 8px 24px -8px rgba(185, 140, 42, 0.35);
+  color-scheme: light;
+}
+
+:root.dark,
+[data-theme="dark"] {
+  --bg-page: #0a0a0d;
+  --bg-surface: #111116;
+  --bg-card: #16161c;
+  --bg-card-elevated: #1c1c23;
+  --bg-input: #1b1b22;
+  --bg-pill: #18181f;
+  --text-primary: #f6f3ec;
+  --text-secondary: #b1aba0;
+  --text-muted: #7e7970;
+  --gold-accent: #e1c06f;
+  --gold-bright: #d4af37;
+  --gold-soft-bg: rgba(212, 175, 55, 0.12);
+  --border-subtle: rgba(255, 255, 255, 0.08);
+  --border-gold: rgba(212, 175, 55, 0.24);
+  --border-gold-strong: rgba(212, 175, 55, 0.55);
+  --shadow-card: 0 18px 42px -20px rgba(0, 0, 0, 0.85);
+  --shadow-gold: 0 10px 28px -10px rgba(212, 175, 55, 0.42);
+  color-scheme: dark;
+}
+
+@layer base {
+  html {
+    font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI',
+      sans-serif;
+    background-color: var(--bg-page);
+    color: var(--text-primary);
+    scroll-behavior: smooth;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  body {
+    margin: 0;
+    min-height: 100vh;
+    background-color: var(--bg-page);
+    color: var(--text-primary);
+    transition: background-color 0.2s ease, color 0.2s ease;
+  }
+
+  .font-display {
+    font-family: 'Cormorant Garamond', Georgia, 'Times New Roman', serif;
+  }
+}
+
+/* Brushed champagne-gold CTA matching Colombo Tours reference */
+.btn-gold {
+  background: linear-gradient(135deg, #ebd083 0%, #d4af37 52%, #b78d31 100%);
+  color: #12100a;
+  font-weight: 600;
+  box-shadow: var(--shadow-gold);
+  transition: filter 0.18s ease, transform 0.18s ease, opacity 0.18s ease;
+}
+
+.btn-gold:hover:not(:disabled) {
+  filter: brightness(1.06);
+}
+
+.btn-gold:active:not(:disabled) {
+  transform: scale(0.985);
+}
+
+.btn-gold:disabled,
+.btn-gold[aria-disabled="true"] {
+  background: linear-gradient(135deg, rgba(160, 148, 120, 0.32), rgba(120, 112, 92, 0.28));
+  color: var(--text-muted);
+  box-shadow: none;
+  cursor: not-allowed;
+  opacity: 0.72;
+}
+
+.card-luxury {
+  background: var(--bg-card);
+  border: 1px solid var(--border-gold);
+  box-shadow: var(--shadow-card);
+  transition: border-color 0.2s ease, transform 0.2s ease;
+}
+
+.dark .card-luxury {
+  background: linear-gradient(180deg, #1b1b22 0%, #131318 100%);
+}
+
+.card-luxury:hover {
+  border-color: var(--border-gold-strong);
+}
+
+.pill-gold-outline {
+  border: 1px solid var(--border-gold);
+  background: var(--bg-pill);
+  color: var(--text-primary);
+  transition: border-color 0.18s ease, background-color 0.18s ease, color 0.18s ease;
+}
+
+.pill-gold-outline:hover:not(:disabled) {
+  border-color: var(--border-gold-strong);
+  background: var(--gold-soft-bg);
+}
+
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+/* Native date input icon visibility across themes */
+.dark input[type="date"]::-webkit-calendar-picker-indicator {
+  filter: invert(0.85) sepia(0.3) saturate(2) hue-rotate(5deg);
+  cursor: pointer;
+}
+input[type="date"]::-webkit-calendar-picker-indicator {
+  cursor: pointer;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+  *,
+  *::before,
+  *::after {
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+  }
+}
