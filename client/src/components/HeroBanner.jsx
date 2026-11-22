@@ -140,6 +140,7 @@ export function HeroBanner({
                         src={photo?.url}
                         alt={photo?.alt || vehicle.name}
                         eager={idx === 0}
+                        deliveryWidth={1280}
                         className="h-full w-full object-cover object-center"
                       />
                     </div>

@@ -1,15 +1,18 @@
 import { CarFront } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { resolveApiUrl } from '../lib/api';
+import { optimizeCloudinaryDeliveryUrl } from '../lib/imageOptimize';
 
 /**
- * Lightweight image component with native lazy loading below the fold
+ * Lightweight image component with native lazy loading below the fold,
+ * automatic Cloudinary f_auto/q_auto responsive delivery,
  * and a polished studio fallback when a vehicle photo is missing or fails to load.
  */
 export function VehiclePhoto({
   src,
   alt = 'Colombo Tours vehicle',
   eager = false,
+  deliveryWidth = 960,
   className = 'h-full w-full object-cover',
 }) {
   const [failed, setFailed] = useState(false);
@@ -18,7 +21,9 @@ export function VehiclePhoto({
     setFailed(false);
   }, [src]);
 
-  const resolvedSrc = src ? resolveApiUrl(src) : '';
+  const resolvedSrc = src
+    ? optimizeCloudinaryDeliveryUrl(resolveApiUrl(src), deliveryWidth)
+    : '';
 
   if (!resolvedSrc || failed) {
     return (

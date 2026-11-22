@@ -100,10 +100,11 @@ function uploadBufferToCloudinary(buffer, cleanName) {
         folder: env.cloudinaryFolder,
         public_id: `${Date.now()}-${baseName}`,
         resource_type: 'image',
+        format: 'webp',
         overwrite: false,
         transformation: [
           {
-            width: 1600,
+            width: 1280,
             crop: 'limit',
             quality: 'auto:good',
           },

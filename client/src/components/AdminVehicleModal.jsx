@@ -9,7 +9,7 @@ import {
 } from 'lucide-react';
 import { useState } from 'react';
 import { apiFetch } from '../lib/api';
-import { optimizeImageForUpload } from '../lib/imageOptimize';
+import { formatFileSize, optimizeImageForUpload } from '../lib/imageOptimize';
 import { VehiclePhoto } from './VehiclePhoto';
 
 function buildInitialForm(vehicle) {
@@ -118,7 +118,6 @@ export function AdminVehicleModal({
         return { ...prev, photos: combined };
       });
 
-      const savedKb = Math.max(0, Math.round((originalBytes - optimizedBytes) / 1024));
       const providerLabel =
         data.storageProvider === 'cloudinary'
           ? ' to Cloudinary CDN'
@@ -126,9 +125,9 @@ export function AdminVehicleModal({
             ? ' to Vercel Blob'
             : '';
       setUploadInfo(
-        savedKb > 10
-          ? `Uploaded ${uploaded.length} photo(s)${providerLabel} — optimized and saved ~${savedKb} KB for mobile.`
-          : `Uploaded ${uploaded.length} photo(s)${providerLabel}.`
+        originalBytes > optimizedBytes
+          ? `Uploaded ${uploaded.length} photo(s)${providerLabel} — converted to WebP (${formatFileSize(originalBytes)} → ${formatFileSize(optimizedBytes)}).`
+          : `Uploaded ${uploaded.length} photo(s)${providerLabel} (${formatFileSize(optimizedBytes)} WebP).`
       );
     } catch (err) {
       setError(err.message || 'Image upload failed.');
