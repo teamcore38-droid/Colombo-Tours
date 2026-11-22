@@ -1,7 +1,8 @@
-import { render, screen, waitFor, within } from '@testing-library/react';
+import { act, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { HeroBanner } from '../components/HeroBanner';
 import { SiteProvider } from '../context/SiteContext';
 import { ThemeProvider } from '../context/ThemeContext';
 import { HomePage } from '../pages/HomePage';
@@ -243,5 +244,40 @@ describe('Colombo Tours Storefront UI', () => {
     expect(
       screen.getByTestId('vehicle-card-2024-mercedes-benz-s-class')
     ).toBeInTheDocument();
+  });
+
+  it('renders responsive hero banner for mobile and desktop with working auto-carousel', async () => {
+    vi.useFakeTimers();
+    try {
+      const payload = createBootstrapPayload({ whatsappNumber: '94771234567' });
+      render(
+        <HeroBanner
+          featuredVehicles={payload.vehicles}
+          settings={payload.settings}
+          autoPlayMs={3000}
+        />
+      );
+
+      const banner = screen.getByTestId('hero-banner');
+      expect(banner.className).not.toContain('hidden');
+      expect(screen.getByTestId('hero-active-vehicle-badge')).toHaveTextContent(
+        '2024 Mercedes-Benz S-Class'
+      );
+
+      act(() => {
+        vi.advanceTimersByTime(3100);
+      });
+
+      expect(screen.getByTestId('hero-active-vehicle-badge')).toHaveTextContent(
+        'Land Rover Defender 110'
+      );
+      expect(
+        decodeURIComponent(
+          screen.getByTestId('hero-whatsapp-btn').getAttribute('href')
+        )
+      ).toContain('Land Rover Defender 110');
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

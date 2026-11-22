@@ -112,10 +112,11 @@ export function HomePage() {
       <Header />
 
       <main className="mx-auto w-full max-w-7xl flex-1 px-3.5 pt-4 pb-6 sm:px-6 sm:pt-6 lg:px-8 lg:pt-7">
-        {/* Desktop wide luxury Hero Banner */}
+        {/* Responsive luxury Hero Banner with auto-carousel across mobile, tablet & desktop */}
         <HeroBanner
           featuredVehicles={featuredVehicles}
           settings={settings}
+          loading={loading}
           onViewSpecs={setSpecsVehicle}
         />
 
