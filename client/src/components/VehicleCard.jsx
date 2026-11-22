@@ -20,8 +20,20 @@ export function VehicleCard({
   const primaryPhoto =
     vehicle.photos?.find((p) => p.isPrimary) || vehicle.photos?.[0] || null;
   const specs = vehicle.specs || {};
-  const primaryCategory = vehicle.categories?.[0]?.name || '';
+  const primaryCategory =
+    vehicle.categories?.find(
+      (c) => c.slug !== 'chauffeur' && c.slug !== 'airport-transfer'
+    )?.name ||
+    vehicle.categories?.find((c) => c.slug !== 'chauffeur')?.name ||
+    vehicle.categories?.[0]?.name ||
+    '';
   const message = buildVehicleEnquiryMessage(vehicle.name);
+
+  const chauffeurLabel = specs.chauffeur
+    ? specs.chauffeur.toLowerCase().includes('chauffeur')
+      ? 'Chauffeur'
+      : specs.chauffeur
+    : '';
 
   const specPills = [
     specs.transmission
@@ -36,12 +48,11 @@ export function VehicleCard({
     primaryCategory
       ? { key: 'category', label: primaryCategory, icon: Crown }
       : null,
-    specs.chauffeur
+    chauffeurLabel &&
+    chauffeurLabel.toLowerCase() !== primaryCategory.toLowerCase()
       ? {
           key: 'chauffeur',
-          label: specs.chauffeur.toLowerCase().includes('chauffeur')
-            ? 'Chauffeur'
-            : specs.chauffeur,
+          label: chauffeurLabel,
           icon: UserCheck,
         }
       : null,
