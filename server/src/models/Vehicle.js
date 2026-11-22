@@ -15,7 +15,7 @@ const vehiclePhotoSchema = new mongoose.Schema(
     },
     storageProvider: {
       type: String,
-      enum: ['static', 'vercel-blob', 'mongodb', 'external'],
+      enum: ['static', 'cloudinary', 'vercel-blob', 'mongodb', 'external'],
       default: 'external',
     },
     mediaId: {

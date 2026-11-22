@@ -119,10 +119,16 @@ export function AdminVehicleModal({
       });
 
       const savedKb = Math.max(0, Math.round((originalBytes - optimizedBytes) / 1024));
+      const providerLabel =
+        data.storageProvider === 'cloudinary'
+          ? ' to Cloudinary CDN'
+          : data.storageProvider === 'vercel-blob'
+            ? ' to Vercel Blob'
+            : '';
       setUploadInfo(
         savedKb > 10
-          ? `Uploaded ${uploaded.length} photo(s) — optimized and saved ~${savedKb} KB for mobile.`
-          : `Uploaded ${uploaded.length} photo(s).`
+          ? `Uploaded ${uploaded.length} photo(s)${providerLabel} — optimized and saved ~${savedKb} KB for mobile.`
+          : `Uploaded ${uploaded.length} photo(s)${providerLabel}.`
       );
     } catch (err) {
       setError(err.message || 'Image upload failed.');

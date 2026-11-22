@@ -157,7 +157,7 @@ describe('Colombo Tours API', () => {
     expect(catRes.status).toBe(201);
     const createdCat = catRes.body.category;
 
-    // Create a new vehicle with uploaded photo & category
+    // Create a new vehicle with uploaded photo & category (also verify Cloudinary provider accepted)
     const createRes = await agent.post('/api/admin/vehicles').send({
       name: '2025 Audi A8 L',
       model: 'Audi A8 Long Wheelbase',
@@ -169,12 +169,22 @@ describe('Colombo Tours API', () => {
         luggage: '3 Suitcases',
         chauffeur: 'Chauffeur Included',
       },
-      photos: [{ ...uploadedPhoto, isPrimary: true }],
+      photos: [
+        { ...uploadedPhoto, isPrimary: true },
+        {
+          url: 'https://res.cloudinary.com/demo/image/upload/v1/colombo-tours/sample.webp',
+          alt: 'Cloudinary sample',
+          storageProvider: 'cloudinary',
+          mediaId: 'colombo-tours/vehicles/sample',
+          isPrimary: false,
+        },
+      ],
       isPublished: true,
     });
     expect(createRes.status).toBe(201);
     const createdVehicle = createRes.body.vehicle;
     expect(createdVehicle.slug).toBe('2025-audi-a8-l');
+    expect(createdVehicle.photos[1].storageProvider).toBe('cloudinary');
 
     // Public detail endpoint finds it
     const pubDetail = await request(app).get(

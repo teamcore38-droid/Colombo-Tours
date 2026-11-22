@@ -7,7 +7,11 @@ import { Service } from '../models/Service.js';
 import { SiteSettings } from '../models/SiteSettings.js';
 import { Vehicle } from '../models/Vehicle.js';
 import { generateUniqueSlug } from '../utils/slug.js';
-import { deleteStoredImage, saveUploadedImage } from '../utils/storage.js';
+import {
+  deleteStoredImage,
+  getActiveStorageProvider,
+  saveUploadedImage,
+} from '../utils/storage.js';
 import {
   isValidWhatsAppNumber,
   normalizeWhatsAppNumber,
@@ -67,9 +71,13 @@ function sanitizePhotos(rawPhotos) {
     clean.push({
       url,
       alt: String(item.alt || '').trim().slice(0, 160),
-      storageProvider: ['static', 'vercel-blob', 'mongodb', 'external'].includes(
-        item.storageProvider
-      )
+      storageProvider: [
+        'static',
+        'cloudinary',
+        'vercel-blob',
+        'mongodb',
+        'external',
+      ].includes(item.storageProvider)
         ? item.storageProvider
         : url.startsWith('/api/media/')
           ? 'mongodb'
@@ -190,7 +198,10 @@ router.post(
         })
       );
 
-      return res.status(201).json({ photos: uploaded });
+      return res.status(201).json({
+        photos: uploaded,
+        storageProvider: getActiveStorageProvider(),
+      });
     } catch (error) {
       return next(error);
     }

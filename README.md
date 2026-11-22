@@ -16,7 +16,7 @@ Mobile-first, responsive car rental storefront and staff admin dashboard built f
 - **Secure Staff Admin Dashboard (`/admin`)**:
   - JWT `HttpOnly` cookie authentication with bcrypt password hashing and login rate limiting.
   - Add, edit, publish, unpublish, feature, and delete vehicles.
-  - Client-side WebP photo optimization before upload; serverless-safe storage via **Vercel Blob** (when `BLOB_READ_WRITE_TOKEN` is set) or **MongoDB Media** fallback (`/api/media/:id` with immutable HTTP caching).
+  - Client-side WebP photo optimization before upload; serverless-safe storage via **Cloudinary** (recommended, with automatic CDN optimization and delete cleanup), **Vercel Blob** (optional), or **MongoDB Media** fallback (`/api/media/:id` with immutable HTTP caching).
   - Manage categories, rental services, storefront headlines, and the global WhatsApp number.
 
 ---
@@ -91,6 +91,7 @@ npm run lint
    - Routes all frontend paths (`/`, `/admin`, `/admin/login`) to `index.html`
 3. Add the environment variables from `.env.example` in **Vercel Project Settings → Environment Variables**:
    - Required: `MONGODB_URI`, `JWT_SECRET`, `ADMIN_EMAIL`, `ADMIN_PASSWORD`
-   - Optional: `BLOB_READ_WRITE_TOKEN` (connect a Vercel Blob store for global CDN photo storage; otherwise uploaded photos automatically persist in MongoDB Atlas), `SEED_ON_EMPTY=true`, `DEFAULT_WHATSAPP_NUMBER`
+   - Recommended for image uploads (Cloudinary): `CLOUDINARY_CLOUD_NAME`, `CLOUDINARY_API_KEY`, `CLOUDINARY_API_SECRET` (and optional `CLOUDINARY_FOLDER=colombo-tours/vehicles`), or single-line `CLOUDINARY_URL`
+   - Optional: `SEED_ON_EMPTY=true`, `DEFAULT_WHATSAPP_NUMBER`, `BLOB_READ_WRITE_TOKEN`
 4. Ensure your MongoDB Atlas **Network Access** allows Vercel connections (e.g., `0.0.0.0/0` or Vercel Static IPs).
 5. After deploying, visit `/admin`, sign in with your `ADMIN_EMAIL` / `ADMIN_PASSWORD`, and save your Sri Lankan WhatsApp number under **WhatsApp & Settings** to activate all WhatsApp enquiry buttons site-wide.

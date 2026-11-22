@@ -1,3 +1,4 @@
+import { v2 as cloudinary } from 'cloudinary';
 import { env } from '../config/env.js';
 import { Media } from '../models/Media.js';
 
@@ -7,6 +8,39 @@ const ALLOWED_MIME_TYPES = new Set([
   'image/webp',
   'image/avif',
 ]);
+
+let cloudinaryConfigured = false;
+
+export function isCloudinaryConfigured() {
+  return Boolean(
+    env.cloudinaryUrl ||
+      (env.cloudinaryCloudName &&
+        env.cloudinaryApiKey &&
+        env.cloudinaryApiSecret)
+  );
+}
+
+export function getActiveStorageProvider() {
+  if (isCloudinaryConfigured()) return 'cloudinary';
+  if (env.blobToken) return 'vercel-blob';
+  return 'mongodb';
+}
+
+function ensureCloudinaryConfig() {
+  if (cloudinaryConfigured) return;
+  if (env.cloudinaryCloudName && env.cloudinaryApiKey && env.cloudinaryApiSecret) {
+    cloudinary.config({
+      cloud_name: env.cloudinaryCloudName,
+      api_key: env.cloudinaryApiKey,
+      api_secret: env.cloudinaryApiSecret,
+      secure: true,
+    });
+  } else if (env.cloudinaryUrl) {
+    // Cloudinary SDK reads CLOUDINARY_URL automatically; ensure HTTPS URLs
+    cloudinary.config({ secure: true });
+  }
+  cloudinaryConfigured = true;
+}
 
 /**
  * Inspect file magic bytes to verify genuine image binary content.
@@ -55,10 +89,49 @@ export function sanitizeFilename(name) {
     .slice(0, 120);
 }
 
+function uploadBufferToCloudinary(buffer, cleanName) {
+  ensureCloudinaryConfig();
+  const baseName = cleanName.replace(/\.[^.]+$/, '').slice(0, 60) || 'vehicle';
+
+  return new Promise((resolve, reject) => {
+    const stream = cloudinary.uploader.upload_stream(
+      {
+        folder: env.cloudinaryFolder,
+        public_id: `${Date.now()}-${baseName}`,
+        resource_type: 'image',
+        overwrite: false,
+        transformation: [
+          {
+            width: 1600,
+            crop: 'limit',
+            quality: 'auto:good',
+            fetch_format: 'auto',
+          },
+        ],
+      },
+      (error, result) => {
+        if (error || !result?.secure_url) {
+          return reject(
+            error || new Error('Cloudinary upload did not return a secure URL.')
+          );
+        }
+        return resolve({
+          url: result.secure_url,
+          storageProvider: 'cloudinary',
+          mediaId: result.public_id,
+        });
+      }
+    );
+
+    stream.end(buffer);
+  });
+}
+
 /**
- * Serverless-safe photo upload:
- * - Uses Vercel Blob when BLOB_READ_WRITE_TOKEN is configured.
- * - Falls back to MongoDB Media collection (served via /api/media/:id with immutable caching).
+ * Serverless-safe photo upload priority:
+ * 1. Cloudinary CDN (when CLOUDINARY_URL or CLOUDINARY_CLOUD_NAME/API_KEY/API_SECRET are set)
+ * 2. Vercel Blob (when BLOB_READ_WRITE_TOKEN is set)
+ * 3. MongoDB Media collection fallback (/api/media/:id with immutable cache headers)
  */
 export async function saveUploadedImage({ buffer, originalname, mimetype }) {
   const detectedMime = detectImageMimeFromBuffer(buffer);
@@ -73,6 +146,10 @@ export async function saveUploadedImage({ buffer, originalname, mimetype }) {
   }
 
   const cleanName = sanitizeFilename(originalname);
+
+  if (isCloudinaryConfigured()) {
+    return uploadBufferToCloudinary(buffer, cleanName);
+  }
 
   if (env.blobToken) {
     const { put } = await import('@vercel/blob');
@@ -106,7 +183,16 @@ export async function saveUploadedImage({ buffer, originalname, mimetype }) {
 export async function deleteStoredImage(photo) {
   if (!photo) return;
   try {
-    if (photo.storageProvider === 'mongodb' && photo.mediaId) {
+    if (
+      photo.storageProvider === 'cloudinary' &&
+      photo.mediaId &&
+      isCloudinaryConfigured()
+    ) {
+      ensureCloudinaryConfig();
+      await cloudinary.uploader.destroy(photo.mediaId, {
+        resource_type: 'image',
+      });
+    } else if (photo.storageProvider === 'mongodb' && photo.mediaId) {
       await Media.findByIdAndDelete(photo.mediaId);
     } else if (
       photo.storageProvider === 'vercel-blob' &&

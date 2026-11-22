@@ -30,6 +30,13 @@ export const env = {
   adminName: (process.env.ADMIN_NAME || 'Colombo Tours Staff').trim(),
   defaultWhatsappNumber: (process.env.DEFAULT_WHATSAPP_NUMBER || '').trim(),
   seedOnEmpty: process.env.SEED_ON_EMPTY !== 'false',
+  cloudinaryUrl: (process.env.CLOUDINARY_URL || '').trim(),
+  cloudinaryCloudName: (process.env.CLOUDINARY_CLOUD_NAME || '').trim(),
+  cloudinaryApiKey: (process.env.CLOUDINARY_API_KEY || '').trim(),
+  cloudinaryApiSecret: (process.env.CLOUDINARY_API_SECRET || '').trim(),
+  cloudinaryFolder: (
+    process.env.CLOUDINARY_FOLDER || 'colombo-tours/vehicles'
+  ).trim(),
   blobToken: (process.env.BLOB_READ_WRITE_TOKEN || '').trim(),
   corsOrigins: (
     process.env.CORS_ORIGINS || 'http://localhost:5173,http://127.0.0.1:5173'
