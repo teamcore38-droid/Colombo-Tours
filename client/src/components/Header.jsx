@@ -68,16 +68,18 @@ export function Header() {
 
           {/* Right: Desktop WhatsApp pill, Language switcher (mobile & desktop), and compact theme toggle */}
           <div className="flex items-center gap-1.5 sm:gap-2.5 shrink-0">
-            <WhatsAppButton
-              whatsappNumber={settings.whatsappNumber}
-              message={settings.supportGreeting}
-              variant="outline"
-              size="sm"
-              dataTestId="header-whatsapp-btn"
-              className="hidden md:inline-flex px-3.5 py-1.5 text-xs font-medium"
-            >
-              WhatsApp Support
-            </WhatsAppButton>
+            <div className="hidden md:block">
+              <WhatsAppButton
+                whatsappNumber={settings.whatsappNumber}
+                message={settings.supportGreeting}
+                variant="outline"
+                size="sm"
+                dataTestId="header-whatsapp-btn"
+                className="px-3.5 py-1.5 text-xs font-medium"
+              >
+                WhatsApp Support
+              </WhatsAppButton>
+            </div>
 
             <LanguageSwitcher />
 

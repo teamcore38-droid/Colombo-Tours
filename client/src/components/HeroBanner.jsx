@@ -188,7 +188,12 @@ export function HeroBanner({
           <div className="order-2 lg:order-1 lg:col-span-6 z-10 px-4 pt-2 pb-4 sm:px-7 sm:pt-3 sm:pb-5 lg:px-9 lg:py-9 xl:px-11">
             <div className="inline-flex items-center gap-1.5 rounded-full border border-[#D4AF37]/35 bg-[#D4AF37]/10 px-2.5 py-0.5 sm:px-3 sm:py-1 text-[10px] sm:text-[11px] font-medium uppercase tracking-[0.15em] text-[#E6C875] mb-2.5 sm:mb-3.5">
               <Sparkles className="h-3 w-3" />
-              <span>{settings.companyName} · Sri Lanka</span>
+              <span>
+                <span translate="no" className="notranslate">
+                  {settings.companyName}
+                </span>{' '}
+                · Sri Lanka
+              </span>
             </div>
 
             <h1 className="font-display text-[1.65rem] sm:text-3xl lg:text-4xl xl:text-[2.95rem] font-semibold uppercase leading-[1.08] tracking-[0.02em] text-[#F1D896]">

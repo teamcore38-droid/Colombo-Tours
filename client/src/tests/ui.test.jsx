@@ -298,10 +298,10 @@ describe('Colombo Tours Storefront UI', () => {
       expect(screen.getByTestId('fleet-grid')).toBeInTheDocument()
     );
 
-    // Header WhatsApp button is hidden on mobile, floating WhatsApp button is shown on mobile
+    // Header WhatsApp button wrapper is hidden on mobile, floating WhatsApp button is shown on mobile
     const headerWa = screen.getByTestId('header-whatsapp-btn');
-    expect(headerWa.className).toContain('hidden');
-    expect(headerWa.className).toContain('md:inline-flex');
+    expect(headerWa.parentElement.className).toContain('hidden');
+    expect(headerWa.parentElement.className).toContain('md:block');
 
     const floatingWa = screen.getByTestId('floating-whatsapp-btn');
     expect(floatingWa.tagName).toBe('A');
