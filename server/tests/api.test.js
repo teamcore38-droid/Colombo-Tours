@@ -39,6 +39,8 @@ describe('Colombo Tours API', () => {
   it('bootstraps with seeded Sri Lankan fleet and disabled WhatsApp by default', async () => {
     const res = await request(app).get('/api/bootstrap');
     expect(res.status).toBe(200);
+    expect(res.headers['cdn-cache-control']).toContain('s-maxage=60');
+    expect(res.headers['cdn-cache-control']).toContain('stale-while-revalidate');
     expect(res.body.settings.whatsappConfigured).toBe(false);
     expect(res.body.settings.whatsappNumber).toBe('');
     expect(res.body.categories.length).toBeGreaterThanOrEqual(4);
@@ -49,6 +51,10 @@ describe('Colombo Tours API', () => {
     expect(catSlugs).toEqual(
       expect.arrayContaining(['luxury', 'suv', 'wedding', 'chauffeur'])
     );
+
+    const freshRes = await request(app).get('/api/bootstrap?fresh=1');
+    expect(freshRes.status).toBe(200);
+    expect(freshRes.headers['cache-control']).toBe('no-store');
   });
 
   it('filters and searches public vehicles and handles empty results cleanly', async () => {

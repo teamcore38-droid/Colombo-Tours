@@ -109,6 +109,22 @@ function uploadBufferToCloudinary(buffer, cleanName) {
             quality: 'auto:good',
           },
         ],
+        // Pre-build the card (960px) and hero (1280px) responsive variants asynchronously at upload time
+        eager: [
+          {
+            width: 960,
+            crop: 'limit',
+            quality: 'auto:good',
+            fetch_format: 'auto',
+          },
+          {
+            width: 1280,
+            crop: 'limit',
+            quality: 'auto:good',
+            fetch_format: 'auto',
+          },
+        ],
+        eager_async: true,
       },
       (error, result) => {
         if (error || !result?.secure_url) {
