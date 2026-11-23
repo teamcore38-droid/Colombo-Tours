@@ -23,7 +23,10 @@ export function BrandLogo({ variant = 'compact', className = '' }) {
     : '/brand/colombo-tours-emblem-light.png';
 
   return (
-    <span className={`inline-flex items-center gap-2.5 select-none ${className}`}>
+    <span
+      translate="no"
+      className={`notranslate inline-flex items-center gap-2.5 select-none ${className}`}
+    >
       <img
         src={emblemSrc}
         alt="Colombo Tours logo"

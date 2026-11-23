@@ -393,7 +393,10 @@ export function AdminDashboardPage() {
   }
 
   return (
-    <div className="min-h-screen bg-[var(--bg-page)] text-[var(--text-primary)]">
+    <div
+      translate="no"
+      className="notranslate min-h-screen bg-[var(--bg-page)] text-[var(--text-primary)]"
+    >
       {/* Top Admin Header */}
       <header className="sticky top-0 z-30 border-b border-[var(--border-gold)] bg-[var(--bg-surface)]/95 backdrop-blur-md">
         <div className="mx-auto flex h-16 max-w-7xl items-center justify-between gap-3 px-4 sm:px-6 lg:px-8">

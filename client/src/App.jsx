@@ -1,5 +1,6 @@
 import { lazy, Suspense } from 'react';
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
+import { LanguageProvider } from './context/LanguageContext';
 import { SiteProvider } from './context/SiteContext';
 import { ThemeProvider } from './context/ThemeContext';
 import { HomePage } from './pages/HomePage';
@@ -25,18 +26,20 @@ function RouteFallback() {
 export function App() {
   return (
     <ThemeProvider>
-      <SiteProvider>
-        <BrowserRouter>
-          <Suspense fallback={<RouteFallback />}>
-            <Routes>
-              <Route path="/" element={<HomePage />} />
-              <Route path="/admin/login" element={<AdminLoginPage />} />
-              <Route path="/admin" element={<AdminDashboardPage />} />
-              <Route path="*" element={<Navigate to="/" replace />} />
-            </Routes>
-          </Suspense>
-        </BrowserRouter>
-      </SiteProvider>
+      <LanguageProvider>
+        <SiteProvider>
+          <BrowserRouter>
+            <Suspense fallback={<RouteFallback />}>
+              <Routes>
+                <Route path="/" element={<HomePage />} />
+                <Route path="/admin/login" element={<AdminLoginPage />} />
+                <Route path="/admin" element={<AdminDashboardPage />} />
+                <Route path="*" element={<Navigate to="/" replace />} />
+              </Routes>
+            </Suspense>
+          </BrowserRouter>
+        </SiteProvider>
+      </LanguageProvider>
     </ThemeProvider>
   );
 }

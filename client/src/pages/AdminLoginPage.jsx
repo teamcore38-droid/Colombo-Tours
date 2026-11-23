@@ -44,7 +44,10 @@ export function AdminLoginPage() {
   };
 
   return (
-    <div className="flex min-h-screen flex-col items-center justify-center bg-[var(--bg-page)] px-4 py-10">
+    <div
+      translate="no"
+      className="notranslate flex min-h-screen flex-col items-center justify-center bg-[var(--bg-page)] px-4 py-10"
+    >
       <div className="w-full max-w-md">
         <div className="mb-6 flex justify-center">
           <Link to="/" aria-label="Return to Colombo Tours storefront">

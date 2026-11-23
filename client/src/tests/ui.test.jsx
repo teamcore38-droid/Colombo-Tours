@@ -3,6 +3,11 @@ import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { HeroBanner } from '../components/HeroBanner';
+import {
+  isValidLanguageCode,
+  LANGUAGE_STORAGE_KEY,
+  LanguageProvider,
+} from '../context/LanguageContext';
 import { SiteProvider } from '../context/SiteContext';
 import { ThemeProvider } from '../context/ThemeContext';
 import { HomePage } from '../pages/HomePage';
@@ -100,11 +105,13 @@ function renderStorefront(payload) {
 
   return render(
     <ThemeProvider>
-      <SiteProvider>
-        <MemoryRouter>
-          <HomePage />
-        </MemoryRouter>
-      </SiteProvider>
+      <LanguageProvider>
+        <SiteProvider>
+          <MemoryRouter>
+            <HomePage />
+          </MemoryRouter>
+        </SiteProvider>
+      </LanguageProvider>
     </ThemeProvider>
   );
 }
@@ -113,6 +120,7 @@ beforeEach(() => {
   localStorage.clear();
   document.documentElement.classList.add('dark');
   document.documentElement.setAttribute('data-theme', 'dark');
+  document.documentElement.lang = 'en';
   vi.restoreAllMocks();
 });
 
@@ -139,6 +147,7 @@ describe('Colombo Tours Storefront UI', () => {
     );
 
     expect(screen.getByTestId('header-whatsapp-btn')).toBeDisabled();
+    expect(screen.getByTestId('floating-whatsapp-btn')).toBeDisabled();
     expect(screen.getByTestId('hero-whatsapp-btn')).toBeDisabled();
     expect(
       screen.getByTestId('vehicle-whatsapp-2024-mercedes-benz-s-class')
@@ -279,5 +288,58 @@ describe('Colombo Tours Storefront UI', () => {
     } finally {
       vi.useRealTimers();
     }
+  });
+
+  it('provides header language switcher (EN default, Sinhala, Tamil, Chinese) and floating mobile WhatsApp button', async () => {
+    const user = userEvent.setup();
+    renderStorefront(createBootstrapPayload({ whatsappNumber: '94771234567' }));
+
+    await waitFor(() =>
+      expect(screen.getByTestId('fleet-grid')).toBeInTheDocument()
+    );
+
+    // Header WhatsApp button is hidden on mobile, floating WhatsApp button is shown on mobile
+    const headerWa = screen.getByTestId('header-whatsapp-btn');
+    expect(headerWa.className).toContain('hidden');
+    expect(headerWa.className).toContain('md:inline-flex');
+
+    const floatingWa = screen.getByTestId('floating-whatsapp-btn');
+    expect(floatingWa.tagName).toBe('A');
+    expect(floatingWa.className).toContain('fixed');
+    expect(floatingWa.className).toContain('md:hidden');
+    expect(floatingWa.getAttribute('href')).toContain(
+      'https://wa.me/94771234567?text='
+    );
+
+    // Language switcher defaults to English and lists EN, Sinhala, Tamil, Chinese
+    const langBtn = screen.getByTestId('language-switcher-btn');
+    expect(langBtn).toHaveTextContent('EN');
+    expect(document.documentElement.lang).toBe('en');
+
+    await user.click(langBtn);
+    const menu = screen.getByTestId('language-switcher-menu');
+    expect(within(menu).getByTestId('language-option-en')).toBeInTheDocument();
+    expect(within(menu).getByTestId('language-option-si')).toBeInTheDocument();
+    expect(within(menu).getByTestId('language-option-ta')).toBeInTheDocument();
+    expect(within(menu).getByTestId('language-option-zh-CN')).toBeInTheDocument();
+
+    // Switch to Sinhala and verify persistence + html lang update
+    await user.click(within(menu).getByTestId('language-option-si'));
+    expect(localStorage.getItem(LANGUAGE_STORAGE_KEY)).toBe('si');
+    expect(document.documentElement.lang).toBe('si');
+    expect(screen.getByTestId('language-switcher-btn')).toHaveTextContent('සිං');
+
+    // Switch to Chinese
+    await user.click(screen.getByTestId('language-switcher-btn'));
+    await user.click(screen.getByTestId('language-option-zh-CN'));
+    expect(localStorage.getItem(LANGUAGE_STORAGE_KEY)).toBe('zh-CN');
+    expect(document.documentElement.lang).toBe('zh-CN');
+
+    // Allowlist safeguard rejects invalid/injected language codes
+    expect(isValidLanguageCode('si')).toBe(true);
+    expect(isValidLanguageCode('ta')).toBe(true);
+    expect(isValidLanguageCode('zh-CN')).toBe(true);
+    expect(isValidLanguageCode('en; evil=1')).toBe(false);
+    expect(isValidLanguageCode('<script>')).toBe(false);
   });
 });

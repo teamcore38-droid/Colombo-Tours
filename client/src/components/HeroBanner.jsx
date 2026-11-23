@@ -176,7 +176,10 @@ export function HeroBanner({
                 data-testid="hero-active-vehicle-badge"
                 className="absolute bottom-3 right-3 lg:bottom-5 lg:right-7 z-30 rounded-full border border-[#D4AF37]/35 bg-black/70 px-3 py-1 text-[11px] sm:text-xs font-medium text-[#EFE6CE] backdrop-blur-xs"
               >
-                Featured: {activeVehicle.name}
+                Featured:{' '}
+                <span translate="no" className="notranslate">
+                  {activeVehicle.name}
+                </span>
               </div>
             ) : null}
           </div>

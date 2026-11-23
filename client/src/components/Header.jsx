@@ -4,6 +4,7 @@ import { Link } from 'react-router-dom';
 import { useSite } from '../context/SiteContext';
 import { useTheme } from '../context/ThemeContext';
 import { BrandLogo } from './BrandLogo';
+import { LanguageSwitcher } from './LanguageSwitcher';
 import { WhatsAppButton } from './WhatsAppButton';
 
 export function Header() {
@@ -65,19 +66,20 @@ export function Header() {
             </Link>
           </nav>
 
-          {/* Right: WhatsApp Support pill + compact Sun/Moon segmented toggle */}
-          <div className="flex items-center gap-2 sm:gap-2.5 shrink-0">
+          {/* Right: Desktop WhatsApp pill, Language switcher (mobile & desktop), and compact theme toggle */}
+          <div className="flex items-center gap-1.5 sm:gap-2.5 shrink-0">
             <WhatsAppButton
               whatsappNumber={settings.whatsappNumber}
               message={settings.supportGreeting}
               variant="outline"
               size="sm"
               dataTestId="header-whatsapp-btn"
-              className="px-2.5 sm:px-3.5 py-1.5 text-[11px] sm:text-xs font-medium"
+              className="hidden md:inline-flex px-3.5 py-1.5 text-xs font-medium"
             >
-              <span className="hidden xs:inline sm:inline">WhatsApp Support</span>
-              <span className="xs:hidden sm:hidden">WhatsApp</span>
+              WhatsApp Support
             </WhatsAppButton>
+
+            <LanguageSwitcher />
 
             <button
               type="button"

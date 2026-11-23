@@ -1,6 +1,7 @@
 import { AlertCircle, CarFront, RotateCcw } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { CategoryPills } from '../components/CategoryPills';
+import { FloatingWhatsAppButton } from '../components/FloatingWhatsAppButton';
 import { Footer } from '../components/Footer';
 import { Header } from '../components/Header';
 import { HeroBanner } from '../components/HeroBanner';
@@ -323,6 +324,9 @@ export function HomePage() {
       </main>
 
       <Footer />
+
+      {/* Mobile floating WhatsApp support button */}
+      <FloatingWhatsAppButton />
 
       {/* Vehicle Specifications Modal */}
       <VehicleSpecsModal

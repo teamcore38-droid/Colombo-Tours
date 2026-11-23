@@ -97,12 +97,16 @@ export function VehicleSpecsModal({
             </div>
             <h2
               id="vehicle-specs-title"
-              className="text-xl sm:text-2xl font-semibold text-[var(--text-primary)]"
+              translate="no"
+              className="notranslate text-xl sm:text-2xl font-semibold text-[var(--text-primary)]"
             >
               {vehicle.name}
             </h2>
             {vehicle.model && vehicle.model !== vehicle.name ? (
-              <p className="text-xs sm:text-sm text-[var(--text-muted)]">
+              <p
+                translate="no"
+                className="notranslate text-xs sm:text-sm text-[var(--text-muted)]"
+              >
                 {vehicle.model}
               </p>
             ) : null}

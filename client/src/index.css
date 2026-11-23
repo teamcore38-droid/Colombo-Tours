@@ -61,11 +61,29 @@
     background-color: var(--bg-page);
     color: var(--text-primary);
     transition: background-color 0.2s ease, color 0.2s ease;
+    top: 0 !important;
   }
 
   .font-display {
     font-family: 'Cormorant Garamond', Georgia, 'Times New Roman', serif;
   }
+}
+
+/* Hide Google Translate default top banner, tooltips, and highlight artifacts */
+.goog-te-banner-frame,
+.goog-te-balloon-frame,
+iframe.goog-te-banner-frame,
+iframe.skiptranslate,
+#goog-gt-tt,
+.goog-tooltip,
+.goog-tooltip:hover {
+  display: none !important;
+  visibility: hidden !important;
+}
+
+.goog-text-highlight {
+  background-color: transparent !important;
+  box-shadow: none !important;
 }
 
 /* Brushed champagne-gold CTA matching Colombo Tours reference */

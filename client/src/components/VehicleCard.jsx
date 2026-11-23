@@ -98,11 +98,17 @@ export function VehicleCard({
       {/* Card body */}
       <div className="flex flex-1 flex-col p-4 sm:p-4.5">
         <div className="mb-3">
-          <h3 className="text-[1.05rem] sm:text-lg font-semibold leading-snug text-[var(--text-primary)]">
+          <h3
+            translate="no"
+            className="notranslate text-[1.05rem] sm:text-lg font-semibold leading-snug text-[var(--text-primary)]"
+          >
             {vehicle.name}
           </h3>
           {vehicle.model && vehicle.model !== vehicle.name ? (
-            <p className="mt-0.5 text-xs text-[var(--text-muted)] line-clamp-1">
+            <p
+              translate="no"
+              className="notranslate mt-0.5 text-xs text-[var(--text-muted)] line-clamp-1"
+            >
               {vehicle.model}
             </p>
           ) : null}
