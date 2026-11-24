@@ -10,9 +10,9 @@ import {
   X,
 } from 'lucide-react';
 import { useEffect, useState } from 'react';
-import { buildVehicleEnquiryMessage } from '../lib/whatsapp';
+import { buildVehicleEnquiryMessage } from '../lib/channels';
+import { BookingChannelGroup } from './ChannelButtons';
 import { VehiclePhoto } from './VehiclePhoto';
-import { WhatsAppButton } from './WhatsAppButton';
 
 export function VehicleSpecsModal({
   vehicle,
@@ -221,12 +221,23 @@ export function VehicleSpecsModal({
 
           <p className="rounded-xl border border-[var(--border-gold)] bg-[var(--gold-soft-bg)] px-3.5 py-2.5 text-xs text-[var(--text-secondary)]">
             Availability, tailored rates, and booking confirmation are handled
-            directly with our Colombo Tours concierge via WhatsApp.
+            directly with our Colombo Tours concierge via WhatsApp, Telegram, or
+            WeChat.
           </p>
         </div>
 
         {/* Sticky modal footer */}
-        <div className="flex flex-col-reverse gap-2.5 border-t border-[var(--border-subtle)] bg-[var(--bg-surface)] px-5 py-4 sm:flex-row sm:items-center">
+        <div className="space-y-2.5 border-t border-[var(--border-subtle)] bg-[var(--bg-surface)] px-5 py-4">
+          <BookingChannelGroup
+            message={message}
+            subjectLabel={vehicle.name}
+            whatsappNumber={whatsappNumber}
+            size="sm"
+            whatsappTestId="modal-whatsapp-btn"
+            telegramTestId="modal-telegram-btn"
+            wechatTestId="modal-wechat-btn"
+          />
+
           {onSelectForEnquiry ? (
             <button
               type="button"
@@ -234,23 +245,12 @@ export function VehicleSpecsModal({
                 onSelectForEnquiry(vehicle);
                 onClose?.();
               }}
-              className="inline-flex items-center justify-center gap-2 rounded-full border border-[var(--border-gold)] bg-[var(--bg-pill)] px-4 py-2.5 text-sm font-medium text-[var(--text-primary)] hover:border-[var(--border-gold-strong)] hover:bg-[var(--gold-soft-bg)] cursor-pointer"
+              className="inline-flex w-full items-center justify-center gap-2 rounded-full border border-[var(--border-gold)] bg-[var(--bg-pill)] px-4 py-2 text-xs sm:text-sm font-medium text-[var(--text-primary)] hover:border-[var(--border-gold-strong)] hover:bg-[var(--gold-soft-bg)] cursor-pointer"
             >
-              <Send className="h-4 w-4 text-[var(--gold-accent)]" />
+              <Send className="h-3.5 w-3.5 text-[var(--gold-accent)]" />
               <span>Add Dates in Quick Enquiry</span>
             </button>
           ) : null}
-
-          <WhatsAppButton
-            whatsappNumber={whatsappNumber}
-            message={message}
-            variant="gold"
-            size="md"
-            dataTestId="modal-whatsapp-btn"
-            className="flex-1 py-2.5"
-          >
-            Book via WhatsApp
-          </WhatsAppButton>
         </div>
       </div>
     </div>

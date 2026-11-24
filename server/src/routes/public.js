@@ -5,10 +5,16 @@ import { Service } from '../models/Service.js';
 import { SiteSettings } from '../models/SiteSettings.js';
 import { Vehicle } from '../models/Vehicle.js';
 import {
+  formatTelegramDisplay,
   formatWhatsAppDisplay,
+  isValidTelegramHandle,
+  isValidWeChatId,
   isValidWhatsAppNumber,
+  normalizeTelegramHandle,
+  normalizeWeChatId,
   normalizeWhatsAppNumber,
-} from '../utils/whatsapp.js';
+  sanitizeSafeImageUrl,
+} from '../utils/channels.js';
 
 const router = Router();
 
@@ -35,13 +41,35 @@ function setPublicEdgeCache(req, res) {
 
 export function serializeSettings(doc) {
   const digits = normalizeWhatsAppNumber(doc?.whatsappNumber || '');
-  const configured = isValidWhatsAppNumber(digits);
+  const whatsappConfigured = isValidWhatsAppNumber(digits);
+
+  const telegramHandle = normalizeTelegramHandle(doc?.telegramHandle || '');
+  const telegramConfigured = isValidTelegramHandle(telegramHandle);
+
+  const wechatId = normalizeWeChatId(doc?.wechatId || '');
+  const wechatIdValid = isValidWeChatId(wechatId);
+  const wechatQrUrl = sanitizeSafeImageUrl(doc?.wechatQrUrl || '');
+  const wechatConfigured = wechatIdValid || Boolean(wechatQrUrl);
+
   return {
     companyName: doc?.companyName || 'Colombo Tours',
     tagline: doc?.tagline || 'Built Trust in Excellence',
-    whatsappNumber: configured ? digits : '',
-    whatsappDisplay: configured ? formatWhatsAppDisplay(digits) : '',
-    whatsappConfigured: configured,
+    whatsappNumber: whatsappConfigured ? digits : '',
+    whatsappDisplay: whatsappConfigured ? formatWhatsAppDisplay(digits) : '',
+    whatsappConfigured,
+    telegramHandle: telegramConfigured ? telegramHandle : '',
+    telegramDisplay: telegramConfigured
+      ? formatTelegramDisplay(telegramHandle)
+      : '',
+    telegramConfigured,
+    wechatId: wechatIdValid ? wechatId : '',
+    wechatDisplay: wechatIdValid ? wechatId : '',
+    wechatQrUrl,
+    wechatQrStorageProvider: wechatQrUrl ? doc?.wechatQrStorageProvider || '' : '',
+    wechatQrMediaId: wechatQrUrl ? doc?.wechatQrMediaId || '' : '',
+    wechatConfigured,
+    anyBookingChannelConfigured:
+      whatsappConfigured || telegramConfigured || wechatConfigured,
     heroHeadline:
       doc?.heroHeadline || 'EXPERIENCE SRI LANKA IN UNRIVALED LUXURY',
     heroSubheadline:

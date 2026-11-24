@@ -29,6 +29,8 @@ export const env = {
   adminPassword: process.env.ADMIN_PASSWORD || 'ChangeMe123!',
   adminName: (process.env.ADMIN_NAME || 'Colombo Tours Staff').trim(),
   defaultWhatsappNumber: (process.env.DEFAULT_WHATSAPP_NUMBER || '').trim(),
+  defaultTelegramHandle: (process.env.DEFAULT_TELEGRAM_HANDLE || '').trim(),
+  defaultWeChatId: (process.env.DEFAULT_WECHAT_ID || '').trim(),
   seedOnEmpty: process.env.SEED_ON_EMPTY !== 'false',
   cloudinaryUrl: (process.env.CLOUDINARY_URL || '').trim(),
   cloudinaryCloudName: (process.env.CLOUDINARY_CLOUD_NAME || '').trim(),

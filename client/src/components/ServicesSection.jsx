@@ -1,6 +1,6 @@
 import { Briefcase, Car, Compass, Heart, Plane } from 'lucide-react';
-import { buildServiceEnquiryMessage } from '../lib/whatsapp';
-import { WhatsAppButton } from './WhatsAppButton';
+import { buildServiceEnquiryMessage } from '../lib/channels';
+import { BookingChannelGroup } from './ChannelButtons';
 
 const ICON_MAP = {
   plane: Plane,
@@ -32,8 +32,8 @@ export function ServicesSection({ services = [], whatsappNumber }) {
           </h2>
         </div>
         <p className="max-w-md text-xs sm:text-sm text-[var(--text-muted)]">
-          Select any service below to message our concierge directly on WhatsApp
-          with your itinerary.
+          Select any service below to message our concierge directly on
+          WhatsApp, Telegram, or WeChat with your itinerary.
         </p>
       </div>
 
@@ -71,16 +71,15 @@ export function ServicesSection({ services = [], whatsappNumber }) {
               ) : null}
 
               <div className="mt-auto">
-                <WhatsAppButton
-                  whatsappNumber={whatsappNumber}
+                <BookingChannelGroup
                   message={message}
-                  variant="outline"
-                  size="sm"
-                  dataTestId={`service-whatsapp-${service.slug}`}
-                  className="w-full py-2.5 text-xs font-semibold"
-                >
-                  Enquire via WhatsApp
-                </WhatsAppButton>
+                  subjectLabel={service.name}
+                  whatsappNumber={whatsappNumber}
+                  size="xs"
+                  whatsappTestId={`service-whatsapp-${service.slug}`}
+                  telegramTestId={`service-telegram-${service.slug}`}
+                  wechatTestId={`service-wechat-${service.slug}`}
+                />
               </div>
             </article>
           );

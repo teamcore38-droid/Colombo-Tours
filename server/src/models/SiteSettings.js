@@ -26,6 +26,35 @@ const siteSettingsSchema = new mongoose.Schema(
       trim: true,
       maxlength: 20,
     },
+    telegramHandle: {
+      type: String,
+      default: '',
+      trim: true,
+      maxlength: 40,
+    },
+    wechatId: {
+      type: String,
+      default: '',
+      trim: true,
+      maxlength: 40,
+    },
+    wechatQrUrl: {
+      type: String,
+      default: '',
+      trim: true,
+      maxlength: 500,
+    },
+    wechatQrStorageProvider: {
+      type: String,
+      enum: ['', 'static', 'cloudinary', 'vercel-blob', 'mongodb', 'external'],
+      default: '',
+    },
+    wechatQrMediaId: {
+      type: String,
+      default: '',
+      trim: true,
+      maxlength: 200,
+    },
     heroHeadline: {
       type: String,
       default: 'EXPERIENCE SRI LANKA IN UNRIVALED LUXURY',

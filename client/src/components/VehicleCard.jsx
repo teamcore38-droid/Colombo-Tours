@@ -6,9 +6,9 @@ import {
   UserCheck,
   Users,
 } from 'lucide-react';
-import { buildVehicleEnquiryMessage } from '../lib/whatsapp';
+import { buildVehicleEnquiryMessage } from '../lib/channels';
+import { BookingChannelGroup } from './ChannelButtons';
 import { VehiclePhoto } from './VehiclePhoto';
-import { WhatsAppButton } from './WhatsAppButton';
 
 export function VehicleCard({
   vehicle,
@@ -132,24 +132,23 @@ export function VehicleCard({
           </div>
         ) : null}
 
-        {/* Primary & secondary CTA row matching mobile mockup */}
-        <div className="mt-auto flex items-center gap-2.5 pt-1">
-          <WhatsAppButton
-            whatsappNumber={whatsappNumber}
+        {/* 3-channel booking options (WhatsApp, Telegram, WeChat) + View Specs */}
+        <div className="mt-auto space-y-2 pt-1">
+          <BookingChannelGroup
             message={message}
-            variant="gold"
-            size="md"
-            dataTestId={`vehicle-whatsapp-${vehicle.slug}`}
-            className="flex-1 text-xs sm:text-sm py-2.5"
-          >
-            Book via WhatsApp
-          </WhatsAppButton>
+            subjectLabel={vehicle.name}
+            whatsappNumber={whatsappNumber}
+            size="xs"
+            whatsappTestId={`vehicle-whatsapp-${vehicle.slug}`}
+            telegramTestId={`vehicle-telegram-${vehicle.slug}`}
+            wechatTestId={`vehicle-wechat-${vehicle.slug}`}
+          />
 
           <button
             type="button"
             onClick={() => onViewSpecs?.(vehicle)}
             data-testid={`vehicle-specs-${vehicle.slug}`}
-            className="shrink-0 rounded-full border border-[var(--border-gold)] bg-[var(--bg-pill)] px-4 py-2.5 text-xs sm:text-sm font-medium text-[var(--text-primary)] transition-colors hover:border-[var(--border-gold-strong)] hover:bg-[var(--gold-soft-bg)] cursor-pointer"
+            className="w-full rounded-full border border-[var(--border-gold)] bg-[var(--bg-pill)] px-4 py-2 text-xs sm:text-sm font-medium text-[var(--text-primary)] transition-colors hover:border-[var(--border-gold-strong)] hover:bg-[var(--gold-soft-bg)] cursor-pointer"
           >
             View Specs
           </button>

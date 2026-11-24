@@ -1,8 +1,8 @@
 import { ChevronLeft, ChevronRight, Sparkles } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { buildVehicleEnquiryMessage } from '../lib/whatsapp';
+import { buildVehicleEnquiryMessage } from '../lib/channels';
+import { BookingChannelGroup } from './ChannelButtons';
 import { VehiclePhoto } from './VehiclePhoto';
-import { WhatsAppButton } from './WhatsAppButton';
 
 function pickHeroPhoto(vehicle, preferHeroWide = false) {
   const photos = vehicle?.photos || [];
@@ -204,30 +204,38 @@ export function HeroBanner({
               {settings.heroSubheadline}
             </p>
 
-            <div className="mt-4 sm:mt-5 lg:mt-6 flex flex-wrap items-center gap-2.5 sm:gap-3">
-              <WhatsAppButton
-                whatsappNumber={settings.whatsappNumber}
+            <div className="mt-4 sm:mt-5 lg:mt-6 space-y-2.5">
+              <BookingChannelGroup
                 message={enquiryMessage}
-                variant="gold"
-                size="md"
-                dataTestId="hero-whatsapp-btn"
-                className="flex-1 sm:flex-none lg:px-6 lg:py-3 lg:text-base"
-              >
-                Book on WhatsApp
-              </WhatsAppButton>
+                subjectLabel={activeVehicle?.name || 'Featured Vehicle Enquiry'}
+                whatsappNumber={settings.whatsappNumber}
+                telegramHandle={settings.telegramHandle}
+                wechatId={settings.wechatId}
+                wechatQrUrl={settings.wechatQrUrl}
+                size="sm"
+                layout="row"
+                whatsappTestId="hero-whatsapp-btn"
+                telegramTestId="hero-telegram-btn"
+                wechatTestId="hero-wechat-btn"
+              />
 
               {activeVehicle ? (
-                <button
-                  type="button"
-                  onClick={() => onViewSpecs?.(activeVehicle)}
-                  data-testid="hero-view-specs-btn"
-                  className="rounded-full border border-[#D4AF37]/35 bg-white/5 px-4 py-2.5 lg:px-5 lg:py-3 text-xs sm:text-sm font-medium text-[#F6F3EC] hover:border-[#D4AF37]/70 hover:bg-[#D4AF37]/10 transition-colors cursor-pointer"
-                >
-                  <span className="sm:hidden">View Specs</span>
-                  <span className="hidden sm:inline">
-                    View {activeVehicle.name}
-                  </span>
-                </button>
+                <div>
+                  <button
+                    type="button"
+                    onClick={() => onViewSpecs?.(activeVehicle)}
+                    data-testid="hero-view-specs-btn"
+                    className="rounded-full border border-[#D4AF37]/35 bg-white/5 px-4 py-2 text-xs sm:text-sm font-medium text-[#F6F3EC] hover:border-[#D4AF37]/70 hover:bg-[#D4AF37]/10 transition-colors cursor-pointer"
+                  >
+                    <span className="sm:hidden">View Specs</span>
+                    <span className="hidden sm:inline">
+                      View{' '}
+                      <span translate="no" className="notranslate">
+                        {activeVehicle.name}
+                      </span>
+                    </span>
+                  </button>
+                </div>
               ) : null}
             </div>
           </div>

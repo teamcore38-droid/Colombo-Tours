@@ -1,7 +1,8 @@
 import { AlertCircle, CarFront, RotateCcw } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { CategoryPills } from '../components/CategoryPills';
-import { FloatingWhatsAppButton } from '../components/FloatingWhatsAppButton';
+import { BookingChannelGroup } from '../components/ChannelButtons';
+import { FloatingContactButtons } from '../components/FloatingContactButtons';
 import { Footer } from '../components/Footer';
 import { Header } from '../components/Header';
 import { HeroBanner } from '../components/HeroBanner';
@@ -10,7 +11,7 @@ import { SearchFilterBar } from '../components/SearchFilterBar';
 import { ServicesSection } from '../components/ServicesSection';
 import { VehicleCard } from '../components/VehicleCard';
 import { VehicleSpecsModal } from '../components/VehicleSpecsModal';
-import { WhatsAppButton } from '../components/WhatsAppButton';
+import { WeChatEnquiryModal } from '../components/WeChatEnquiryModal';
 import { useSite } from '../context/SiteContext';
 
 const INITIAL_FILTERS = {
@@ -121,8 +122,11 @@ export function HomePage() {
           onViewSpecs={setSpecsVehicle}
         />
 
-        {/* Subtle client-review banner if WhatsApp number has not been set yet */}
-        {!loading && !settings.whatsappConfigured ? (
+        {/* Subtle client-review banner if no booking channel has been configured yet */}
+        {!loading &&
+        !settings.whatsappConfigured &&
+        !settings.telegramConfigured &&
+        !settings.wechatConfigured ? (
           <div
             role="status"
             data-testid="global-whatsapp-disabled-banner"
@@ -130,8 +134,9 @@ export function HomePage() {
           >
             <AlertCircle className="h-4 w-4 shrink-0 text-[var(--gold-accent)]" />
             <span>
-              WhatsApp booking buttons are currently disabled until a valid
-              contact number is saved in the Staff Admin Dashboard.
+              Booking buttons (WhatsApp, Telegram, WeChat) are currently
+              disabled until at least one contact channel is saved in the Staff
+              Admin Dashboard.
             </span>
           </div>
         ) : null}
@@ -256,10 +261,10 @@ export function HomePage() {
                 </h3>
                 <p className="mt-1.5 max-w-md text-sm text-[var(--text-secondary)]">
                   Try clearing your search or adjusting filters — or message our
-                  concierge directly on WhatsApp for custom Sri Lankan fleet
-                  requests.
+                  concierge directly on WhatsApp, Telegram, or WeChat for custom
+                  Sri Lankan fleet requests.
                 </p>
-                <div className="mt-5 flex flex-wrap items-center justify-center gap-3">
+                <div className="mt-5 flex flex-col items-center gap-3 w-full max-w-md">
                   <button
                     type="button"
                     onClick={handleResetAll}
@@ -270,18 +275,24 @@ export function HomePage() {
                     <span>Reset Search &amp; Filters</span>
                   </button>
 
-                  <WhatsAppButton
-                    whatsappNumber={settings.whatsappNumber}
+                  <BookingChannelGroup
                     message={
                       search.trim()
                         ? `Hello Colombo Tours, I’m looking for "${search.trim()}". Could you let me know if you have this vehicle or a similar option available?`
                         : settings.supportGreeting
                     }
-                    variant="gold"
-                    size="md"
-                  >
-                    Ask Concierge on WhatsApp
-                  </WhatsAppButton>
+                    subjectLabel={
+                      search.trim()
+                        ? `Custom request: ${search.trim()}`
+                        : 'Custom Fleet Request'
+                    }
+                    whatsappNumber={settings.whatsappNumber}
+                    telegramHandle={settings.telegramHandle}
+                    wechatId={settings.wechatId}
+                    wechatQrUrl={settings.wechatQrUrl}
+                    size="xs"
+                    className="w-full"
+                  />
                 </div>
               </div>
             ) : (
@@ -310,6 +321,9 @@ export function HomePage() {
               vehicles={vehicles}
               services={services}
               whatsappNumber={settings.whatsappNumber}
+              telegramHandle={settings.telegramHandle}
+              wechatId={settings.wechatId}
+              wechatQrUrl={settings.wechatQrUrl}
               selectedVehicleName={enquiryVehicleName}
               onClearSelectedVehicle={() => setEnquiryVehicleName('')}
             />
@@ -325,8 +339,11 @@ export function HomePage() {
 
       <Footer />
 
-      {/* Mobile floating WhatsApp support button */}
-      <FloatingWhatsAppButton />
+      {/* Stacked floating WeChat, Telegram & WhatsApp buttons */}
+      <FloatingContactButtons />
+
+      {/* WeChat Booking Concierge Modal */}
+      <WeChatEnquiryModal />
 
       {/* Vehicle Specifications Modal */}
       <VehicleSpecsModal

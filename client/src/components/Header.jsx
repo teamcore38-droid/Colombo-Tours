@@ -4,8 +4,13 @@ import { Link } from 'react-router-dom';
 import { useSite } from '../context/SiteContext';
 import { useTheme } from '../context/ThemeContext';
 import { BrandLogo } from './BrandLogo';
+import {
+  BookingChannelGroup,
+  TelegramButton,
+  WeChatButton,
+  WhatsAppButton,
+} from './ChannelButtons';
 import { LanguageSwitcher } from './LanguageSwitcher';
-import { WhatsAppButton } from './WhatsAppButton';
 
 export function Header() {
   const { isDark, toggleTheme } = useTheme();
@@ -66,19 +71,43 @@ export function Header() {
             </Link>
           </nav>
 
-          {/* Right: Desktop WhatsApp pill, Language switcher (mobile & desktop), and compact theme toggle */}
+          {/* Right: Desktop 3-channel support buttons, Language switcher (mobile & desktop), and compact theme toggle */}
           <div className="flex items-center gap-1.5 sm:gap-2.5 shrink-0">
-            <div className="hidden md:block">
+            <div className="hidden md:flex items-center gap-1.5">
               <WhatsAppButton
                 whatsappNumber={settings.whatsappNumber}
                 message={settings.supportGreeting}
                 variant="outline"
                 size="sm"
                 dataTestId="header-whatsapp-btn"
-                className="px-3.5 py-1.5 text-xs font-medium"
+                className="px-3 py-1.5 text-xs font-medium"
               >
-                WhatsApp Support
+                <span translate="no" className="notranslate">
+                  WhatsApp
+                </span>
               </WhatsAppButton>
+              <TelegramButton
+                telegramHandle={settings.telegramHandle}
+                message={settings.supportGreeting}
+                variant="outline"
+                size="sm"
+                dataTestId="header-telegram-btn"
+                className="px-2.5 py-1.5 text-xs font-medium"
+              >
+                Telegram
+              </TelegramButton>
+              <WeChatButton
+                wechatId={settings.wechatId}
+                wechatQrUrl={settings.wechatQrUrl}
+                message={settings.supportGreeting}
+                subjectLabel="General Concierge Support"
+                variant="outline"
+                size="sm"
+                dataTestId="header-wechat-btn"
+                className="px-2.5 py-1.5 text-xs font-medium"
+              >
+                WeChat
+              </WeChatButton>
             </div>
 
             <LanguageSwitcher />
@@ -173,19 +202,20 @@ export function Header() {
               </Link>
             </nav>
 
-            <div className="mt-auto pt-5 border-t border-[var(--border-subtle)]">
-              <p className="text-xs text-[var(--text-muted)] mb-3">
+            <div className="mt-auto pt-5 border-t border-[var(--border-subtle)] space-y-2.5">
+              <p className="text-xs text-[var(--text-muted)]">
                 {settings.tagline}
               </p>
-              <WhatsAppButton
-                whatsappNumber={settings.whatsappNumber}
+              <BookingChannelGroup
                 message={settings.supportGreeting}
-                variant="gold"
-                size="md"
-                className="w-full"
-              >
-                WhatsApp Support
-              </WhatsAppButton>
+                subjectLabel="General Concierge Support"
+                whatsappNumber={settings.whatsappNumber}
+                telegramHandle={settings.telegramHandle}
+                wechatId={settings.wechatId}
+                wechatQrUrl={settings.wechatQrUrl}
+                size="xs"
+                onChannelClick={() => setDrawerOpen(false)}
+              />
             </div>
           </aside>
         </div>

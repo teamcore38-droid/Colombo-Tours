@@ -13,9 +13,14 @@ import {
   saveUploadedImage,
 } from '../utils/storage.js';
 import {
+  isValidTelegramHandle,
+  isValidWeChatId,
   isValidWhatsAppNumber,
+  normalizeTelegramHandle,
+  normalizeWeChatId,
   normalizeWhatsAppNumber,
-} from '../utils/whatsapp.js';
+  sanitizeSafeImageUrl,
+} from '../utils/channels.js';
 import { serializeSettings } from './public.js';
 
 const router = Router();
@@ -756,6 +761,97 @@ router.put('/settings', async (req, res, next) => {
       }
     }
 
+    if (req.body?.telegramHandle !== undefined) {
+      const raw = String(req.body.telegramHandle || '').trim();
+      if (raw === '') {
+        settings.telegramHandle = '';
+      } else {
+        const normalized = normalizeTelegramHandle(raw);
+        if (!isValidTelegramHandle(normalized)) {
+          return res.status(400).json({
+            error:
+              'Enter a valid Telegram @username (5–32 letters, numbers, underscores) or international phone number (e.g., +94 77 123 4567).',
+          });
+        }
+        settings.telegramHandle = normalized;
+      }
+    }
+
+    if (req.body?.wechatId !== undefined) {
+      const raw = String(req.body.wechatId || '').trim();
+      if (raw === '') {
+        settings.wechatId = '';
+      } else {
+        const normalized = normalizeWeChatId(raw);
+        if (!isValidWeChatId(normalized)) {
+          return res.status(400).json({
+            error:
+              'Enter a valid WeChat ID (6–20 characters starting with a letter) or international phone number (e.g., +94 77 123 4567).',
+          });
+        }
+        settings.wechatId = normalized;
+      }
+    }
+
+    let removedQrPhoto = null;
+    if (req.body?.wechatQrUrl !== undefined) {
+      const raw = String(req.body.wechatQrUrl || '').trim();
+      const prevQrUrl = settings.wechatQrUrl || '';
+      const prevProvider = settings.wechatQrStorageProvider || '';
+      const prevMediaId = settings.wechatQrMediaId || '';
+
+      if (raw === '') {
+        if (prevQrUrl) {
+          removedQrPhoto = {
+            url: prevQrUrl,
+            storageProvider: prevProvider,
+            mediaId: prevMediaId,
+          };
+        }
+        settings.wechatQrUrl = '';
+        settings.wechatQrStorageProvider = '';
+        settings.wechatQrMediaId = '';
+      } else {
+        const safeUrl = sanitizeSafeImageUrl(raw);
+        if (!safeUrl) {
+          return res.status(400).json({
+            error:
+              'WeChat QR code URL must be a valid HTTPS image URL or uploaded image path.',
+          });
+        }
+        if (prevQrUrl && prevQrUrl !== safeUrl) {
+          removedQrPhoto = {
+            url: prevQrUrl,
+            storageProvider: prevProvider,
+            mediaId: prevMediaId,
+          };
+        }
+        const allowedProviders = [
+          'static',
+          'cloudinary',
+          'vercel-blob',
+          'mongodb',
+          'external',
+        ];
+        const nextProvider = allowedProviders.includes(
+          req.body?.wechatQrStorageProvider
+        )
+          ? req.body.wechatQrStorageProvider
+          : safeUrl.startsWith('/api/media/')
+            ? 'mongodb'
+            : safeUrl.startsWith('/')
+              ? 'static'
+              : 'external';
+        settings.wechatQrUrl = safeUrl;
+        settings.wechatQrStorageProvider = nextProvider;
+        settings.wechatQrMediaId = String(
+          req.body?.wechatQrMediaId || ''
+        )
+          .trim()
+          .slice(0, 200);
+      }
+    }
+
     if (req.body?.companyName !== undefined) {
       const v = String(req.body.companyName || '').trim();
       if (v) settings.companyName = v.slice(0, 100);
@@ -779,6 +875,9 @@ router.put('/settings', async (req, res, next) => {
     }
 
     await settings.save();
+    if (removedQrPhoto) {
+      await deleteStoredImage(removedQrPhoto);
+    }
     return res.json({ settings: serializeSettings(settings.toObject()) });
   } catch (error) {
     return next(error);

@@ -16,21 +16,34 @@ import {
   Star,
   Sun,
   Trash2,
+  Upload,
 } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { AdminVehicleModal } from '../components/AdminVehicleModal';
 import { BrandLogo } from '../components/BrandLogo';
+import {
+  TelegramIcon,
+  WeChatIcon,
+  WhatsAppIcon,
+} from '../components/ChannelButtons';
 import { VehiclePhoto } from '../components/VehiclePhoto';
 import { useSite } from '../context/SiteContext';
 import { useTheme } from '../context/ThemeContext';
-import { apiFetch } from '../lib/api';
+import { apiFetch, resolveApiUrl } from '../lib/api';
 import {
+  buildTelegramUrl,
   buildVehicleEnquiryMessage,
   buildWhatsAppUrl,
+  formatTelegramDisplay,
+  isValidTelegramHandle,
+  isValidWeChatId,
   isValidWhatsAppNumber,
+  normalizeTelegramHandle,
+  normalizeWeChatId,
   normalizeWhatsAppNumber,
-} from '../lib/whatsapp';
+} from '../lib/channels';
+import { optimizeImageForUpload } from '../lib/imageOptimize';
 
 export function AdminDashboardPage() {
   const navigate = useNavigate();
@@ -48,11 +61,21 @@ export function AdminDashboardPage() {
     companyName: 'Colombo Tours',
     tagline: 'Built Trust in Excellence',
     whatsappNumber: '',
+    telegramHandle: '',
+    wechatId: '',
+    wechatQrUrl: '',
+    wechatQrStorageProvider: '',
+    wechatQrMediaId: '',
     heroHeadline: '',
     heroSubheadline: '',
     supportGreeting: '',
   });
-  const [whatsappConfigured, setWhatsappConfigured] = useState(false);
+  const [channelStatus, setChannelStatus] = useState({
+    whatsapp: false,
+    telegram: false,
+    wechat: false,
+  });
+  const [uploadingWeChatQr, setUploadingWeChatQr] = useState(false);
 
   const [fleetSearch, setFleetSearch] = useState('');
   const [fleetStatus, setFleetStatus] = useState('all');
@@ -100,11 +123,21 @@ export function AdminDashboardPage() {
           whatsappNumber: setRes.settings.whatsappNumber
             ? `+${setRes.settings.whatsappNumber}`
             : '',
+          telegramHandle: setRes.settings.telegramDisplay || '',
+          wechatId: setRes.settings.wechatId || '',
+          wechatQrUrl: setRes.settings.wechatQrUrl || '',
+          wechatQrStorageProvider:
+            setRes.settings.wechatQrStorageProvider || '',
+          wechatQrMediaId: setRes.settings.wechatQrMediaId || '',
           heroHeadline: setRes.settings.heroHeadline || '',
           heroSubheadline: setRes.settings.heroSubheadline || '',
           supportGreeting: setRes.settings.supportGreeting || '',
         });
-        setWhatsappConfigured(Boolean(setRes.settings.whatsappConfigured));
+        setChannelStatus({
+          whatsapp: Boolean(setRes.settings.whatsappConfigured),
+          telegram: Boolean(setRes.settings.telegramConfigured),
+          wechat: Boolean(setRes.settings.wechatConfigured),
+        });
       }
     } catch (err) {
       if (err.status === 401) {
@@ -333,7 +366,44 @@ export function AdminDashboardPage() {
     }
   };
 
-  const handleSaveSettings = async (e, overrideWhatsApp) => {
+  const handleUploadWeChatQr = async (e) => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+
+    setUploadingWeChatQr(true);
+    setError('');
+    setNotice('');
+    try {
+      const optimized = await optimizeImageForUpload(file, {
+        maxWidth: 800,
+        maxHeight: 800,
+      });
+      const formData = new FormData();
+      formData.append('photos', optimized);
+      const data = await apiFetch('/api/admin/uploads', {
+        method: 'POST',
+        body: formData,
+      });
+      const uploaded = data.photos?.[0];
+      if (!uploaded?.url) {
+        throw new Error('Could not upload WeChat QR image.');
+      }
+      setSettingsForm((prev) => ({
+        ...prev,
+        wechatQrUrl: uploaded.url,
+        wechatQrStorageProvider: uploaded.storageProvider || '',
+        wechatQrMediaId: uploaded.mediaId || '',
+      }));
+      showToast('WeChat QR image uploaded. Click "Save Settings" to publish.');
+    } catch (err) {
+      setError(err.message || 'Could not upload WeChat QR image.');
+    } finally {
+      setUploadingWeChatQr(false);
+    }
+  };
+
+  const handleSaveSettings = async (e, overrides = null) => {
     e?.preventDefault();
     setSavingSettings(true);
     setError('');
@@ -341,10 +411,11 @@ export function AdminDashboardPage() {
 
     const payload = {
       ...settingsForm,
-      whatsappNumber:
-        overrideWhatsApp !== undefined
-          ? overrideWhatsApp
-          : settingsForm.whatsappNumber.trim(),
+      whatsappNumber: settingsForm.whatsappNumber.trim(),
+      telegramHandle: settingsForm.telegramHandle.trim(),
+      wechatId: settingsForm.wechatId.trim(),
+      wechatQrUrl: settingsForm.wechatQrUrl.trim(),
+      ...(overrides || {}),
     };
 
     try {
@@ -357,16 +428,34 @@ export function AdminDashboardPage() {
         companyName: saved.companyName,
         tagline: saved.tagline,
         whatsappNumber: saved.whatsappNumber ? `+${saved.whatsappNumber}` : '',
+        telegramHandle: saved.telegramDisplay || '',
+        wechatId: saved.wechatId || '',
+        wechatQrUrl: saved.wechatQrUrl || '',
+        wechatQrStorageProvider: saved.wechatQrStorageProvider || '',
+        wechatQrMediaId: saved.wechatQrMediaId || '',
         heroHeadline: saved.heroHeadline,
         heroSubheadline: saved.heroSubheadline,
         supportGreeting: saved.supportGreeting,
       });
-      setWhatsappConfigured(Boolean(saved.whatsappConfigured));
+      setChannelStatus({
+        whatsapp: Boolean(saved.whatsappConfigured),
+        telegram: Boolean(saved.telegramConfigured),
+        wechat: Boolean(saved.wechatConfigured),
+      });
       await notifyDataUpdated();
+
+      const activeLabels = [
+        saved.whatsappConfigured ? `WhatsApp (+${saved.whatsappNumber})` : null,
+        saved.telegramConfigured ? `Telegram (${saved.telegramDisplay})` : null,
+        saved.wechatConfigured
+          ? `WeChat (${saved.wechatId || 'QR Code'})`
+          : null,
+      ].filter(Boolean);
+
       showToast(
-        saved.whatsappConfigured
-          ? `Settings saved! All WhatsApp links now point to +${saved.whatsappNumber}.`
-          : 'Settings saved. WhatsApp enquiry buttons are disabled until a valid number is entered.'
+        activeLabels.length > 0
+          ? `Settings saved! Active booking channels: ${activeLabels.join(' · ')}.`
+          : 'Settings saved. All booking buttons are disabled until at least one channel is configured.'
       );
     } catch (err) {
       setError(err.message || 'Could not update settings.');
@@ -383,6 +472,22 @@ export function AdminDashboardPage() {
         buildVehicleEnquiryMessage('2024 Mercedes-Benz S-Class')
       )
     : null;
+
+  const previewTgHandle = normalizeTelegramHandle(settingsForm.telegramHandle);
+  const previewTgValid = isValidTelegramHandle(previewTgHandle);
+  const sampleTgUrl = previewTgValid
+    ? buildTelegramUrl(
+        previewTgHandle,
+        buildVehicleEnquiryMessage('2024 Mercedes-Benz S-Class')
+      )
+    : null;
+
+  const previewWeChatId = normalizeWeChatId(settingsForm.wechatId);
+  const previewWeChatValid = isValidWeChatId(previewWeChatId);
+  const configuredChannelCount =
+    Number(channelStatus.whatsapp) +
+    Number(channelStatus.telegram) +
+    Number(channelStatus.wechat);
 
   if (!authChecked) {
     return (
@@ -457,20 +562,29 @@ export function AdminDashboardPage() {
             onClick={() => setActiveTab('settings')}
             data-testid="admin-whatsapp-status-pill"
             className={`inline-flex items-center gap-2 rounded-full border px-3.5 py-2 text-xs font-medium cursor-pointer ${
-              whatsappConfigured
+              configuredChannelCount > 0
                 ? 'border-emerald-500/40 bg-emerald-500/10 text-emerald-600 dark:text-emerald-300'
                 : 'border-amber-500/40 bg-amber-500/10 text-amber-700 dark:text-amber-300'
             }`}
           >
-            {whatsappConfigured ? (
+            {configuredChannelCount > 0 ? (
               <>
                 <CheckCircle2 className="h-4 w-4" />
-                <span>WhatsApp Active: {settingsForm.whatsappNumber}</span>
+                <span>
+                  Channels Active ({configuredChannelCount}/3):{' '}
+                  {[
+                    channelStatus.whatsapp ? 'WhatsApp' : null,
+                    channelStatus.telegram ? 'Telegram' : null,
+                    channelStatus.wechat ? 'WeChat' : null,
+                  ]
+                    .filter(Boolean)
+                    .join(' · ')}
+                </span>
               </>
             ) : (
               <>
                 <AlertCircle className="h-4 w-4" />
-                <span>WhatsApp Number Not Set — Click to Configure</span>
+                <span>No Booking Channels Set — Click to Configure</span>
               </>
             )}
           </button>
@@ -554,7 +668,7 @@ export function AdminDashboardPage() {
             { id: 'fleet', label: 'Fleet Vehicles', icon: Car },
             { id: 'categories', label: 'Categories', icon: Layers },
             { id: 'services', label: 'Services', icon: Sparkles },
-            { id: 'settings', label: 'WhatsApp & Settings', icon: Settings },
+            { id: 'settings', label: 'Booking Channels & Settings', icon: Settings },
           ].map(({ id, label, icon: Icon }) => (
             <button
               key={id}
@@ -1029,7 +1143,7 @@ export function AdminDashboardPage() {
           </section>
         ) : null}
 
-        {/* TAB 4: WHATSAPP & SITE SETTINGS */}
+        {/* TAB 4: BOOKING CHANNELS (WHATSAPP, TELEGRAM, WECHAT) & SITE SETTINGS */}
         {activeTab === 'settings' ? (
           <section className="max-w-3xl">
             <form
@@ -1038,59 +1152,257 @@ export function AdminDashboardPage() {
             >
               <div>
                 <h2 className="text-lg font-semibold text-[var(--text-primary)]">
-                  Global WhatsApp Number
+                  Global Booking Channels
                 </h2>
                 <p className="mt-1 text-xs leading-relaxed text-[var(--text-muted)]">
-                  Every WhatsApp enquiry button across the storefront (Header,
-                  Hero Banner, Vehicle Cards, Specs Modal, Quick Enquiry, and
-                  Services) uses this single number. Leave blank to disable all
-                  WhatsApp buttons.
+                  Manage your WhatsApp, Telegram, and WeChat details from one
+                  place. Changing a channel updates every booking button across
+                  the storefront (Floating Dock, Header, Hero, Vehicle Cards,
+                  Specs Modal, Quick Enquiry, and Services). Leaving a channel
+                  blank disables only that channel.
                 </p>
 
-                <div className="mt-4 space-y-3">
-                  <label
-                    htmlFor="settings-whatsapp"
-                    className="block text-xs font-medium text-[var(--text-secondary)]"
-                  >
-                    WhatsApp Number (International format with country code)
-                  </label>
-                  <input
-                    id="settings-whatsapp"
-                    type="text"
-                    value={settingsForm.whatsappNumber}
-                    onChange={(e) =>
-                      setSettingsForm({
-                        ...settingsForm,
-                        whatsappNumber: e.target.value,
-                      })
-                    }
-                    placeholder="e.g., +94 77 123 4567"
-                    data-testid="admin-whatsapp-input"
-                    className="w-full rounded-xl border border-[var(--border-gold)] bg-[var(--bg-input)] px-3.5 py-2.5 text-sm text-[var(--text-primary)] focus:border-[var(--border-gold-strong)] focus:outline-none"
-                  />
+                <div className="mt-5 space-y-5">
+                  {/* 1. WhatsApp */}
+                  <div className="rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-card-elevated)] p-4 space-y-2.5">
+                    <div className="flex items-center justify-between gap-2">
+                      <label
+                        htmlFor="settings-whatsapp"
+                        className="inline-flex items-center gap-2 text-xs font-semibold text-[var(--text-primary)]"
+                      >
+                        <WhatsAppIcon className="h-4 w-4 text-[var(--gold-accent)]" />
+                        <span>
+                          WhatsApp Number (International format with country code)
+                        </span>
+                      </label>
+                      {settingsForm.whatsappNumber ? (
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setSettingsForm({
+                              ...settingsForm,
+                              whatsappNumber: '',
+                            })
+                          }
+                          className="text-[11px] text-red-500 hover:underline cursor-pointer"
+                        >
+                          Clear
+                        </button>
+                      ) : null}
+                    </div>
+                    <input
+                      id="settings-whatsapp"
+                      type="text"
+                      value={settingsForm.whatsappNumber}
+                      onChange={(e) =>
+                        setSettingsForm({
+                          ...settingsForm,
+                          whatsappNumber: e.target.value,
+                        })
+                      }
+                      placeholder="e.g., +94 77 123 4567"
+                      data-testid="admin-whatsapp-input"
+                      className="w-full rounded-xl border border-[var(--border-gold)] bg-[var(--bg-input)] px-3.5 py-2.5 text-sm text-[var(--text-primary)] focus:border-[var(--border-gold-strong)] focus:outline-none"
+                    />
 
-                  {settingsForm.whatsappNumber.trim() ? (
-                    previewValid ? (
-                      <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/10 p-3 text-xs text-emerald-600 dark:text-emerald-300 space-y-1">
-                        <p className="font-medium">
-                          Valid WhatsApp number: +{previewDigits}
+                    {settingsForm.whatsappNumber.trim() ? (
+                      previewValid ? (
+                        <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/10 p-3 text-xs text-emerald-600 dark:text-emerald-300 space-y-1">
+                          <p className="font-medium">
+                            Valid WhatsApp number: +{previewDigits}
+                          </p>
+                          <p className="break-all text-[11px] opacity-85">
+                            Sample link: {sampleWaUrl}
+                          </p>
+                        </div>
+                      ) : (
+                        <p className="text-xs text-red-500 dark:text-red-300">
+                          Please enter 8–15 digits including international country
+                          code without leading zero (for Sri Lanka start with +94).
                         </p>
-                        <p className="break-all text-[11px] opacity-85">
-                          Sample link: {sampleWaUrl}
-                        </p>
-                      </div>
+                      )
                     ) : (
-                      <p className="text-xs text-red-500 dark:text-red-300">
-                        Please enter 8–15 digits including international country
-                        code without leading zero (for Sri Lanka start with +94).
+                      <p className="text-xs text-amber-600 dark:text-amber-300">
+                        Empty: WhatsApp buttons will remain disabled on the
+                        storefront.
                       </p>
-                    )
-                  ) : (
-                    <p className="text-xs text-amber-600 dark:text-amber-300">
-                      Empty: All WhatsApp enquiry buttons will remain disabled on
-                      the storefront.
-                    </p>
-                  )}
+                    )}
+                  </div>
+
+                  {/* 2. Telegram */}
+                  <div className="rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-card-elevated)] p-4 space-y-2.5">
+                    <div className="flex items-center justify-between gap-2">
+                      <label
+                        htmlFor="settings-telegram"
+                        className="inline-flex items-center gap-2 text-xs font-semibold text-[var(--text-primary)]"
+                      >
+                        <TelegramIcon className="h-4 w-4 text-[#2AABEE]" />
+                        <span>
+                          Telegram Username or International Phone Number
+                        </span>
+                      </label>
+                      {settingsForm.telegramHandle ? (
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setSettingsForm({
+                              ...settingsForm,
+                              telegramHandle: '',
+                            })
+                          }
+                          className="text-[11px] text-red-500 hover:underline cursor-pointer"
+                        >
+                          Clear
+                        </button>
+                      ) : null}
+                    </div>
+                    <input
+                      id="settings-telegram"
+                      type="text"
+                      value={settingsForm.telegramHandle}
+                      onChange={(e) =>
+                        setSettingsForm({
+                          ...settingsForm,
+                          telegramHandle: e.target.value,
+                        })
+                      }
+                      placeholder="e.g., @ColomboTours or +94 77 123 4567"
+                      data-testid="admin-telegram-input"
+                      className="w-full rounded-xl border border-[var(--border-gold)] bg-[var(--bg-input)] px-3.5 py-2.5 text-sm text-[var(--text-primary)] focus:border-[var(--border-gold-strong)] focus:outline-none"
+                    />
+
+                    {settingsForm.telegramHandle.trim() ? (
+                      previewTgValid ? (
+                        <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/10 p-3 text-xs text-emerald-600 dark:text-emerald-300 space-y-1">
+                          <p className="font-medium">
+                            Valid Telegram contact:{' '}
+                            {formatTelegramDisplay(previewTgHandle)}
+                          </p>
+                          <p className="break-all text-[11px] opacity-85">
+                            Sample link: {sampleTgUrl}
+                          </p>
+                        </div>
+                      ) : (
+                        <p className="text-xs text-red-500 dark:text-red-300">
+                          Enter a valid Telegram username (5–32 letters, numbers,
+                          underscores) or international phone number (e.g., +94
+                          77 123 4567).
+                        </p>
+                      )
+                    ) : (
+                      <p className="text-xs text-amber-600 dark:text-amber-300">
+                        Empty: Telegram buttons will remain disabled on the
+                        storefront.
+                      </p>
+                    )}
+                  </div>
+
+                  {/* 3. WeChat */}
+                  <div className="rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-card-elevated)] p-4 space-y-3">
+                    <div className="flex items-center justify-between gap-2">
+                      <label
+                        htmlFor="settings-wechat"
+                        className="inline-flex items-center gap-2 text-xs font-semibold text-[var(--text-primary)]"
+                      >
+                        <WeChatIcon className="h-4 w-4 text-[#07C160]" />
+                        <span>
+                          WeChat ID or Phone Number (plus optional WeChat QR Code)
+                        </span>
+                      </label>
+                      {settingsForm.wechatId ? (
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setSettingsForm({ ...settingsForm, wechatId: '' })
+                          }
+                          className="text-[11px] text-red-500 hover:underline cursor-pointer"
+                        >
+                          Clear ID
+                        </button>
+                      ) : null}
+                    </div>
+                    <input
+                      id="settings-wechat"
+                      type="text"
+                      value={settingsForm.wechatId}
+                      onChange={(e) =>
+                        setSettingsForm({
+                          ...settingsForm,
+                          wechatId: e.target.value,
+                        })
+                      }
+                      placeholder="e.g., ColomboToursLK or +94 77 123 4567"
+                      data-testid="admin-wechat-input"
+                      className="w-full rounded-xl border border-[var(--border-gold)] bg-[var(--bg-input)] px-3.5 py-2.5 text-sm text-[var(--text-primary)] focus:border-[var(--border-gold-strong)] focus:outline-none"
+                    />
+
+                    {settingsForm.wechatId.trim() ? (
+                      previewWeChatValid ? (
+                        <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/10 p-3 text-xs text-emerald-600 dark:text-emerald-300">
+                          Valid WeChat contact: <strong>{previewWeChatId}</strong>
+                        </div>
+                      ) : (
+                        <p className="text-xs text-red-500 dark:text-red-300">
+                          Enter a valid WeChat ID (6–20 letters/numbers/underscore/hyphen
+                          starting with a letter) or international phone number.
+                        </p>
+                      )
+                    ) : !settingsForm.wechatQrUrl ? (
+                      <p className="text-xs text-amber-600 dark:text-amber-300">
+                        Empty: WeChat buttons will remain disabled unless a
+                        WeChat ID or QR code is set.
+                      </p>
+                    ) : null}
+
+                    {/* Optional WeChat QR code image upload */}
+                    <div className="flex flex-wrap items-center gap-3 pt-1">
+                      {settingsForm.wechatQrUrl ? (
+                        <div className="flex items-center gap-3">
+                          <div className="h-16 w-16 overflow-hidden rounded-lg border border-[var(--border-gold)] bg-white p-1">
+                            <img
+                              src={resolveApiUrl(settingsForm.wechatQrUrl)}
+                              alt="WeChat QR preview"
+                              className="h-full w-full object-contain"
+                            />
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setSettingsForm((prev) => ({
+                                ...prev,
+                                wechatQrUrl: '',
+                                wechatQrStorageProvider: '',
+                                wechatQrMediaId: '',
+                              }))
+                            }
+                            data-testid="admin-remove-wechat-qr-btn"
+                            className="rounded-full border border-red-500/35 px-3 py-1.5 text-xs font-medium text-red-500 hover:bg-red-500/10 cursor-pointer"
+                          >
+                            Remove QR
+                          </button>
+                        </div>
+                      ) : null}
+
+                      <label className="inline-flex items-center gap-2 rounded-full border border-[var(--border-gold)] bg-[var(--bg-pill)] px-3.5 py-2 text-xs font-medium text-[var(--text-primary)] hover:border-[var(--border-gold-strong)] hover:bg-[var(--gold-soft-bg)] cursor-pointer">
+                        <Upload className="h-3.5 w-3.5 text-[var(--gold-accent)]" />
+                        <span>
+                          {uploadingWeChatQr
+                            ? 'Uploading QR...'
+                            : settingsForm.wechatQrUrl
+                              ? 'Replace WeChat QR Code'
+                              : 'Upload WeChat QR Code (Optional)'}
+                        </span>
+                        <input
+                          type="file"
+                          accept="image/jpeg,image/png,image/webp,image/avif"
+                          disabled={uploadingWeChatQr}
+                          onChange={handleUploadWeChatQr}
+                          data-testid="admin-wechat-qr-input"
+                          className="sr-only"
+                        />
+                      </label>
+                    </div>
+                  </div>
                 </div>
               </div>
 
@@ -1189,7 +1501,8 @@ export function AdminDashboardPage() {
                     htmlFor="settings-support-msg"
                     className="mb-1 block text-xs text-[var(--text-secondary)]"
                   >
-                    General WhatsApp Support Message
+                    General Concierge Support Message (WhatsApp, Telegram &amp;
+                    WeChat)
                   </label>
                   <textarea
                     id="settings-support-msg"
@@ -1210,11 +1523,20 @@ export function AdminDashboardPage() {
                 <button
                   type="button"
                   disabled={savingSettings}
-                  onClick={() => handleSaveSettings(null, '')}
+                  onClick={() =>
+                    handleSaveSettings(null, {
+                      whatsappNumber: '',
+                      telegramHandle: '',
+                      wechatId: '',
+                      wechatQrUrl: '',
+                      wechatQrStorageProvider: '',
+                      wechatQrMediaId: '',
+                    })
+                  }
                   data-testid="admin-clear-whatsapp-btn"
                   className="rounded-full border border-red-500/35 px-4 py-2 text-xs font-medium text-red-500 hover:bg-red-500/10 cursor-pointer"
                 >
-                  Clear Number (Disable Enquiries)
+                  Clear All Channels (Disable Enquiries)
                 </button>
 
                 <button

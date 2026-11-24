@@ -1,11 +1,14 @@
 import { AlertCircle, Calendar, Car, MapPin } from 'lucide-react';
 import { useMemo, useState } from 'react';
+import { useOptionalSite } from '../context/SiteContext';
 import {
   buildQuickEnquiryMessage,
+  isValidTelegramHandle,
   isValidWhatsAppNumber,
+  isWeChatConfigured,
   validateRentalDates,
-} from '../lib/whatsapp';
-import { WhatsAppButton } from './WhatsAppButton';
+} from '../lib/channels';
+import { BookingChannelGroup } from './ChannelButtons';
 
 const SRI_LANKA_LOCATIONS = [
   'Bandaranaike International Airport (CMB)',
@@ -30,9 +33,13 @@ export function QuickEnquiryPanel({
   vehicles = [],
   services = [],
   whatsappNumber,
+  telegramHandle,
+  wechatId,
+  wechatQrUrl,
   selectedVehicleName = '',
   onClearSelectedVehicle,
 }) {
+  const site = useOptionalSite();
   const [selectedTarget, setSelectedTarget] = useState('');
   const [pickupLocation, setPickupLocation] = useState('');
   const [pickupDate, setPickupDate] = useState('');
@@ -88,7 +95,23 @@ export function QuickEnquiryPanel({
     ]
   );
 
-  const hasValidWhatsApp = isValidWhatsAppNumber(whatsappNumber);
+  const effectiveWa =
+    whatsappNumber !== undefined
+      ? whatsappNumber
+      : site?.settings?.whatsappNumber || '';
+  const effectiveTg =
+    telegramHandle !== undefined
+      ? telegramHandle
+      : site?.settings?.telegramHandle || '';
+  const effectiveWcId =
+    wechatId !== undefined ? wechatId : site?.settings?.wechatId || '';
+  const effectiveWcQr =
+    wechatQrUrl !== undefined ? wechatQrUrl : site?.settings?.wechatQrUrl || '';
+
+  const hasAnyChannel =
+    isValidWhatsAppNumber(effectiveWa) ||
+    isValidTelegramHandle(effectiveTg) ||
+    isWeChatConfigured(effectiveWcId, effectiveWcQr);
 
   const handleTargetChange = (value) => {
     if (selectedVehicleName && onClearSelectedVehicle) {
@@ -108,8 +131,8 @@ export function QuickEnquiryPanel({
           Quick Enquiry
         </h2>
         <p className="mt-0.5 text-xs leading-relaxed text-[var(--text-muted)]">
-          Optional pickup details are added straight into your WhatsApp message
-          for faster confirmation.
+          Optional pickup details are added straight into your WhatsApp,
+          Telegram, or WeChat booking message.
         </p>
       </div>
 
@@ -245,32 +268,37 @@ export function QuickEnquiryPanel({
           <span>Include professional English-speaking chauffeur</span>
         </label>
 
-        {/* Submit via WhatsApp */}
-        <div className="pt-1">
-          <WhatsAppButton
-            whatsappNumber={whatsappNumber}
+        {/* Submit via WhatsApp, Telegram, or WeChat */}
+        <div className="pt-1 space-y-2">
+          <p className="text-[11px] font-medium uppercase tracking-wider text-[var(--text-muted)]">
+            Send Enquiry Via
+          </p>
+          <BookingChannelGroup
             message={message}
+            subjectLabel={targetName || 'Quick Booking Enquiry'}
+            whatsappNumber={effectiveWa}
+            telegramHandle={effectiveTg}
+            wechatId={effectiveWcId}
+            wechatQrUrl={effectiveWcQr}
             disabled={Boolean(dateError)}
-            variant="gold"
-            size="md"
-            dataTestId="quick-enquiry-whatsapp-btn"
-            className="w-full py-3"
-          >
-            Book via WhatsApp
-          </WhatsAppButton>
+            size="xs"
+            whatsappTestId="quick-enquiry-whatsapp-btn"
+            telegramTestId="quick-enquiry-telegram-btn"
+            wechatTestId="quick-enquiry-wechat-btn"
+          />
 
-          {!hasValidWhatsApp ? (
+          {!hasAnyChannel ? (
             <p
               data-testid="whatsapp-unconfigured-notice"
               className="mt-2.5 rounded-lg border border-[var(--border-gold)] bg-[var(--gold-soft-bg)] px-3 py-2 text-[11px] leading-relaxed text-[var(--text-secondary)]"
             >
-              WhatsApp enquiry buttons are currently paused until Colombo Tours
-              configures an active contact number in the Admin Dashboard.
+              Booking buttons are currently paused until Colombo Tours
+              configures WhatsApp, Telegram, or WeChat in the Admin Dashboard.
             </p>
           ) : (
-            <p className="mt-2 text-center text-[11px] text-[var(--text-muted)]">
+            <p className="mt-1 text-center text-[11px] text-[var(--text-muted)]">
               Instant response · Rates &amp; availability confirmed directly on
-              WhatsApp
+              your chosen app
             </p>
           )}
         </div>

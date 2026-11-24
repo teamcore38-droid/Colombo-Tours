@@ -14,6 +14,14 @@ const DEFAULT_SETTINGS = {
   whatsappNumber: '',
   whatsappDisplay: '',
   whatsappConfigured: false,
+  telegramHandle: '',
+  telegramDisplay: '',
+  telegramConfigured: false,
+  wechatId: '',
+  wechatDisplay: '',
+  wechatQrUrl: '',
+  wechatConfigured: false,
+  anyBookingChannelConfigured: false,
   heroHeadline: 'EXPERIENCE SRI LANKA IN UNRIVALED LUXURY',
   heroSubheadline:
     'Chauffeur-driven flagship sedans, luxury SUVs, and bespoke transfers across Sri Lanka.',
@@ -41,6 +49,15 @@ export function SiteProvider({ children }) {
   const [vehicles, setVehicles] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [wechatEnquiry, setWechatEnquiry] = useState(null);
+
+  const openWeChatEnquiry = useCallback((payload) => {
+    setWechatEnquiry(payload || null);
+  }, []);
+
+  const closeWeChatEnquiry = useCallback(() => {
+    setWechatEnquiry(null);
+  }, []);
 
   const refreshSiteData = useCallback(async ({ silent = false, fresh = false } = {}) => {
     if (!silent) setLoading(true);
@@ -99,6 +116,9 @@ export function SiteProvider({ children }) {
       error,
       refreshSiteData,
       notifyDataUpdated,
+      wechatEnquiry,
+      openWeChatEnquiry,
+      closeWeChatEnquiry,
     }),
     [
       settings,
@@ -109,6 +129,9 @@ export function SiteProvider({ children }) {
       error,
       refreshSiteData,
       notifyDataUpdated,
+      wechatEnquiry,
+      openWeChatEnquiry,
+      closeWeChatEnquiry,
     ]
   );
 
@@ -121,4 +144,8 @@ export function useSite() {
     throw new Error('useSite must be used inside SiteProvider');
   }
   return ctx;
+}
+
+export function useOptionalSite() {
+  return useContext(SiteContext);
 }

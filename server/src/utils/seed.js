@@ -5,7 +5,14 @@ import { Category } from '../models/Category.js';
 import { Service } from '../models/Service.js';
 import { SiteSettings } from '../models/SiteSettings.js';
 import { Vehicle } from '../models/Vehicle.js';
-import { isValidWhatsAppNumber, normalizeWhatsAppNumber } from './whatsapp.js';
+import {
+  isValidTelegramHandle,
+  isValidWeChatId,
+  isValidWhatsAppNumber,
+  normalizeTelegramHandle,
+  normalizeWeChatId,
+  normalizeWhatsAppNumber,
+} from './channels.js';
 
 const STARTER_CATEGORIES = [
   {
@@ -369,15 +376,23 @@ export async function ensureBaseSetup({ forceSeedFleet = false } = {}) {
     });
   }
 
-  // 2. Ensure singleton site settings exists (WhatsApp empty unless configured via env)
+  // 2. Ensure singleton site settings exists (booking channels empty unless configured via env)
   let settings = await SiteSettings.findOne({ key: 'global' });
   if (!settings) {
     const initialWhatsApp = isValidWhatsAppNumber(env.defaultWhatsappNumber)
       ? normalizeWhatsAppNumber(env.defaultWhatsappNumber)
       : '';
+    const initialTelegram = isValidTelegramHandle(env.defaultTelegramHandle)
+      ? normalizeTelegramHandle(env.defaultTelegramHandle)
+      : '';
+    const initialWeChat = isValidWeChatId(env.defaultWeChatId)
+      ? normalizeWeChatId(env.defaultWeChatId)
+      : '';
     settings = await SiteSettings.create({
       key: 'global',
       whatsappNumber: initialWhatsApp,
+      telegramHandle: initialTelegram,
+      wechatId: initialWeChat,
     });
   }
 

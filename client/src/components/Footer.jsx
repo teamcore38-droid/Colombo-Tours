@@ -2,14 +2,14 @@ import { ShieldCheck } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { useSite } from '../context/SiteContext';
 import { BrandLogo } from './BrandLogo';
-import { WhatsAppButton } from './WhatsAppButton';
+import { BookingChannelGroup } from './ChannelButtons';
 
 export function Footer() {
   const { settings } = useSite();
 
   return (
     <footer className="mt-16 border-t border-[var(--border-gold)] bg-[var(--bg-surface)]">
-      <div className="mx-auto max-w-7xl px-4 pt-10 pb-24 sm:px-6 md:pb-10 lg:px-8">
+      <div className="mx-auto max-w-7xl px-4 pt-10 pb-44 sm:px-6 md:pb-12 lg:px-8">
         <div className="flex flex-col items-center justify-between gap-6 text-center md:flex-row md:text-left">
           <div className="flex flex-col items-center md:items-start">
             <BrandLogo variant="full" className="h-20 sm:h-22" />
@@ -20,15 +20,20 @@ export function Footer() {
           </div>
 
           <div className="flex flex-col items-center gap-3 md:items-end">
-            <WhatsAppButton
-              whatsappNumber={settings.whatsappNumber}
+            <BookingChannelGroup
               message={settings.supportGreeting}
-              variant="gold"
-              size="md"
-              dataTestId="footer-whatsapp-btn"
-            >
-              Chat with Concierge on WhatsApp
-            </WhatsAppButton>
+              subjectLabel="General Concierge Support"
+              whatsappNumber={settings.whatsappNumber}
+              telegramHandle={settings.telegramHandle}
+              wechatId={settings.wechatId}
+              wechatQrUrl={settings.wechatQrUrl}
+              size="sm"
+              layout="row"
+              whatsappTestId="footer-whatsapp-btn"
+              telegramTestId="footer-telegram-btn"
+              wechatTestId="footer-wechat-btn"
+              className="justify-center md:justify-end"
+            />
 
             <div className="flex flex-wrap items-center justify-center gap-4 text-xs text-[var(--text-muted)]">
               <a
@@ -65,7 +70,9 @@ export function Footer() {
             © {new Date().getFullYear()} {settings.companyName}. All rights
             reserved.
           </span>
-          <span>Colombo, Sri Lanka · Enquiries handled directly on WhatsApp</span>
+          <span>
+            Colombo, Sri Lanka · Enquiries via WhatsApp, Telegram &amp; WeChat
+          </span>
         </div>
       </div>
     </footer>

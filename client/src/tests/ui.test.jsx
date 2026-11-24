@@ -12,7 +12,12 @@ import { SiteProvider } from '../context/SiteContext';
 import { ThemeProvider } from '../context/ThemeContext';
 import { HomePage } from '../pages/HomePage';
 
-function createBootstrapPayload({ whatsappNumber = '' } = {}) {
+function createBootstrapPayload({
+  whatsappNumber = '',
+  telegramHandle = '',
+  wechatId = '',
+  wechatQrUrl = '',
+} = {}) {
   return {
     settings: {
       companyName: 'Colombo Tours',
@@ -20,6 +25,20 @@ function createBootstrapPayload({ whatsappNumber = '' } = {}) {
       whatsappNumber,
       whatsappDisplay: whatsappNumber ? `+${whatsappNumber}` : '',
       whatsappConfigured: Boolean(whatsappNumber),
+      telegramHandle,
+      telegramDisplay: telegramHandle
+        ? telegramHandle.startsWith('+')
+          ? telegramHandle
+          : `@${telegramHandle}`
+        : '',
+      telegramConfigured: Boolean(telegramHandle),
+      wechatId,
+      wechatDisplay: wechatId,
+      wechatQrUrl,
+      wechatConfigured: Boolean(wechatId || wechatQrUrl),
+      anyBookingChannelConfigured: Boolean(
+        whatsappNumber || telegramHandle || wechatId || wechatQrUrl
+      ),
       heroHeadline: 'EXPERIENCE SRI LANKA IN UNRIVALED LUXURY',
       heroSubheadline: 'Premier Sri Lankan chauffeur fleet.',
       supportGreeting: 'Hello Colombo Tours, I’d like to enquire.',
@@ -139,7 +158,7 @@ describe('Colombo Tours Storefront UI', () => {
     expect(localStorage.getItem('colombo-tours-theme')).toBe('light');
   });
 
-  it('disables all WhatsApp enquiry buttons until a valid number is configured and omits prices/currency', async () => {
+  it('disables all WhatsApp, Telegram, and WeChat buttons until configured and omits prices/currency', async () => {
     renderStorefront(createBootstrapPayload({ whatsappNumber: '' }));
 
     await waitFor(() =>
@@ -147,13 +166,29 @@ describe('Colombo Tours Storefront UI', () => {
     );
 
     expect(screen.getByTestId('header-whatsapp-btn')).toBeDisabled();
+    expect(screen.getByTestId('header-telegram-btn')).toBeDisabled();
+    expect(screen.getByTestId('header-wechat-btn')).toBeDisabled();
     expect(screen.getByTestId('floating-whatsapp-btn')).toBeDisabled();
+    expect(screen.getByTestId('floating-telegram-btn')).toBeDisabled();
+    expect(screen.getByTestId('floating-wechat-btn')).toBeDisabled();
     expect(screen.getByTestId('hero-whatsapp-btn')).toBeDisabled();
+    expect(screen.getByTestId('hero-telegram-btn')).toBeDisabled();
+    expect(screen.getByTestId('hero-wechat-btn')).toBeDisabled();
     expect(
       screen.getByTestId('vehicle-whatsapp-2024-mercedes-benz-s-class')
     ).toBeDisabled();
+    expect(
+      screen.getByTestId('vehicle-telegram-2024-mercedes-benz-s-class')
+    ).toBeDisabled();
+    expect(
+      screen.getByTestId('vehicle-wechat-2024-mercedes-benz-s-class')
+    ).toBeDisabled();
     expect(screen.getByTestId('quick-enquiry-whatsapp-btn')).toBeDisabled();
+    expect(screen.getByTestId('quick-enquiry-telegram-btn')).toBeDisabled();
+    expect(screen.getByTestId('quick-enquiry-wechat-btn')).toBeDisabled();
     expect(screen.getByTestId('service-whatsapp-airport-transfers')).toBeDisabled();
+    expect(screen.getByTestId('service-telegram-airport-transfers')).toBeDisabled();
+    expect(screen.getByTestId('service-wechat-airport-transfers')).toBeDisabled();
 
     // Ensure no mock pricing or currency toggles leak into DOM
     expect(document.body.textContent).not.toMatch(/Rs\.\s*45,000/i);
@@ -161,9 +196,16 @@ describe('Colombo Tours Storefront UI', () => {
     expect(document.body.textContent).not.toMatch(/\bUSD\b/);
   });
 
-  it('builds accurate WhatsApp URLs for vehicles, services, and Quick Enquiry with optional details', async () => {
+  it('builds accurate WhatsApp, Telegram, and WeChat enquiries for vehicles, services, and Quick Enquiry with optional details', async () => {
     const user = userEvent.setup();
-    renderStorefront(createBootstrapPayload({ whatsappNumber: '94771234567' }));
+    renderStorefront(
+      createBootstrapPayload({
+        whatsappNumber: '94771234567',
+        telegramHandle: 'ColomboTours',
+        wechatId: 'ColomboToursLK',
+        wechatQrUrl: 'https://res.cloudinary.com/demo/image/upload/v1/qr.webp',
+      })
+    );
 
     await waitFor(() =>
       expect(screen.getByTestId('fleet-grid')).toBeInTheDocument()
@@ -178,9 +220,45 @@ describe('Colombo Tours Storefront UI', () => {
       '2024 Mercedes-Benz S-Class'
     );
 
+    // Telegram direct vehicle enquiry link
+    const mercTgBtn = screen.getByTestId(
+      'vehicle-telegram-2024-mercedes-benz-s-class'
+    );
+    expect(mercTgBtn.tagName).toBe('A');
+    expect(mercTgBtn.getAttribute('href')).toContain(
+      'https://t.me/ColomboTours?text='
+    );
+    expect(decodeURIComponent(mercTgBtn.getAttribute('href'))).toContain(
+      '2024 Mercedes-Benz S-Class'
+    );
+
+    // WeChat button opens concierge modal with WeChat ID, QR code, and pre-filled message
+    await user.click(
+      screen.getByTestId('vehicle-wechat-2024-mercedes-benz-s-class')
+    );
+    const wcModal = screen.getByTestId('wechat-enquiry-modal');
+    expect(wcModal).toBeInTheDocument();
+    expect(within(wcModal).getByTestId('wechat-modal-id')).toHaveTextContent(
+      'ColomboToursLK'
+    );
+    expect(within(wcModal).getByTestId('wechat-modal-qr')).toBeInTheDocument();
+    expect(within(wcModal).getByTestId('wechat-modal-message')).toHaveTextContent(
+      '2024 Mercedes-Benz S-Class'
+    );
+    await user.click(screen.getByTestId('close-wechat-modal'));
+    expect(screen.queryByTestId('wechat-enquiry-modal')).not.toBeInTheDocument();
+
     const srvBtn = screen.getByTestId('service-whatsapp-airport-transfers');
     expect(srvBtn.getAttribute('href')).toContain('https://wa.me/94771234567?text=');
     expect(decodeURIComponent(srvBtn.getAttribute('href'))).toContain(
+      'Airport Transfer (BIA / CMB) service'
+    );
+
+    const srvTgBtn = screen.getByTestId('service-telegram-airport-transfers');
+    expect(srvTgBtn.getAttribute('href')).toContain(
+      'https://t.me/ColomboTours?text='
+    );
+    expect(decodeURIComponent(srvTgBtn.getAttribute('href'))).toContain(
       'Airport Transfer (BIA / CMB) service'
     );
 
@@ -204,13 +282,29 @@ describe('Colombo Tours Storefront UI', () => {
     expect(decodedQe).toContain('Pickup date: 2099-05-10');
     expect(decodedQe).toContain('Return date: 2099-05-14');
 
-    // Invalid date range disables Quick Enquiry button and shows error
+    const qeTgBtn = screen.getByTestId('quick-enquiry-telegram-btn');
+    expect(qeTgBtn.tagName).toBe('A');
+    const decodedQeTg = decodeURIComponent(qeTgBtn.getAttribute('href'));
+    expect(decodedQeTg).toContain('Land Rover Defender 110');
+    expect(decodedQeTg).toContain('Pickup location: Colombo City');
+
+    // Quick enquiry WeChat modal carries pickup location & dates
+    await user.click(screen.getByTestId('quick-enquiry-wechat-btn'));
+    const qeWcModal = screen.getByTestId('wechat-enquiry-modal');
+    expect(
+      within(qeWcModal).getByTestId('wechat-modal-message')
+    ).toHaveTextContent('Pickup location: Colombo City');
+    await user.click(screen.getByTestId('close-wechat-modal'));
+
+    // Invalid date range disables ALL 3 Quick Enquiry channels and shows error
     await user.clear(screen.getByTestId('quick-enquiry-return-date'));
     await user.type(screen.getByTestId('quick-enquiry-return-date'), '2099-05-05');
     expect(screen.getByTestId('quick-enquiry-date-error')).toHaveTextContent(
       /earlier than the pickup date/i
     );
     expect(screen.getByTestId('quick-enquiry-whatsapp-btn')).toBeDisabled();
+    expect(screen.getByTestId('quick-enquiry-telegram-btn')).toBeDisabled();
+    expect(screen.getByTestId('quick-enquiry-wechat-btn')).toBeDisabled();
   });
 
   it('supports search, category filtering, empty state recovery, missing photo fallback, and specs modal', async () => {
@@ -290,25 +384,47 @@ describe('Colombo Tours Storefront UI', () => {
     }
   });
 
-  it('provides header language switcher (EN default, Sinhala, Tamil, Chinese) and floating mobile WhatsApp button', async () => {
+  it('provides header language switcher (EN default, Sinhala, Tamil, Chinese) and stacked floating WeChat, Telegram & WhatsApp buttons', async () => {
     const user = userEvent.setup();
-    renderStorefront(createBootstrapPayload({ whatsappNumber: '94771234567' }));
+    renderStorefront(
+      createBootstrapPayload({
+        whatsappNumber: '94771234567',
+        telegramHandle: 'ColomboTours',
+        wechatId: 'ColomboToursLK',
+      })
+    );
 
     await waitFor(() =>
       expect(screen.getByTestId('fleet-grid')).toBeInTheDocument()
     );
 
-    // Header WhatsApp button wrapper is hidden on mobile, floating WhatsApp button is shown on mobile
+    // Header chat buttons wrapper is hidden on mobile (shown on md+)
     const headerWa = screen.getByTestId('header-whatsapp-btn');
     expect(headerWa.parentElement.className).toContain('hidden');
-    expect(headerWa.parentElement.className).toContain('md:block');
+    expect(headerWa.parentElement.className).toContain('md:flex');
+
+    // Floating dock stacks WeChat (top) -> Telegram (middle) -> WhatsApp (bottom)
+    const floatingDock = screen.getByTestId('floating-contact-dock');
+    expect(floatingDock.className).toContain('fixed');
+    const dockButtons = Array.from(floatingDock.children).map((el) =>
+      el.getAttribute('data-testid')
+    );
+    expect(dockButtons).toEqual([
+      'floating-wechat-btn',
+      'floating-telegram-btn',
+      'floating-whatsapp-btn',
+    ]);
 
     const floatingWa = screen.getByTestId('floating-whatsapp-btn');
     expect(floatingWa.tagName).toBe('A');
-    expect(floatingWa.className).toContain('fixed');
-    expect(floatingWa.className).toContain('md:hidden');
     expect(floatingWa.getAttribute('href')).toContain(
       'https://wa.me/94771234567?text='
+    );
+
+    const floatingTg = screen.getByTestId('floating-telegram-btn');
+    expect(floatingTg.tagName).toBe('A');
+    expect(floatingTg.getAttribute('href')).toContain(
+      'https://t.me/ColomboTours?text='
     );
 
     // Language switcher defaults to English and lists EN, Sinhala, Tamil, Chinese

@@ -43,6 +43,10 @@ describe('Colombo Tours API', () => {
     expect(res.headers['cdn-cache-control']).toContain('stale-while-revalidate');
     expect(res.body.settings.whatsappConfigured).toBe(false);
     expect(res.body.settings.whatsappNumber).toBe('');
+    expect(res.body.settings.telegramConfigured).toBe(false);
+    expect(res.body.settings.telegramHandle).toBe('');
+    expect(res.body.settings.wechatConfigured).toBe(false);
+    expect(res.body.settings.wechatId).toBe('');
     expect(res.body.categories.length).toBeGreaterThanOrEqual(4);
     expect(res.body.services.length).toBeGreaterThanOrEqual(4);
     expect(res.body.vehicles.length).toBeGreaterThanOrEqual(5);
@@ -115,18 +119,47 @@ describe('Colombo Tours API', () => {
       .send({ whatsappNumber: '0771234567' });
     expect(badWa.status).toBe(400);
 
-    // Save valid Sri Lankan WhatsApp number
+    // Reject invalid Telegram handle, invalid WeChat ID, and XSS WeChat QR URL
+    const badTg = await agent
+      .put('/api/admin/settings')
+      .send({ telegramHandle: 'ab!' });
+    expect(badTg.status).toBe(400);
+
+    const badWc = await agent
+      .put('/api/admin/settings')
+      .send({ wechatId: '123' });
+    expect(badWc.status).toBe(400);
+
+    const badQr = await agent
+      .put('/api/admin/settings')
+      .send({ wechatQrUrl: 'javascript:alert(1)' });
+    expect(badQr.status).toBe(400);
+
+    // Save valid WhatsApp, Telegram, and WeChat settings
     const goodWa = await agent
       .put('/api/admin/settings')
-      .send({ whatsappNumber: '+94 77 123 4567' });
+      .send({
+        whatsappNumber: '+94 77 123 4567',
+        telegramHandle: 'https://t.me/ColomboTours',
+        wechatId: 'ColomboToursLK',
+      });
     expect(goodWa.status).toBe(200);
     expect(goodWa.body.settings.whatsappNumber).toBe('94771234567');
     expect(goodWa.body.settings.whatsappConfigured).toBe(true);
+    expect(goodWa.body.settings.telegramHandle).toBe('ColomboTours');
+    expect(goodWa.body.settings.telegramDisplay).toBe('@ColomboTours');
+    expect(goodWa.body.settings.telegramConfigured).toBe(true);
+    expect(goodWa.body.settings.wechatId).toBe('ColomboToursLK');
+    expect(goodWa.body.settings.wechatConfigured).toBe(true);
 
-    // Verify public settings immediately reflect updated WhatsApp number
+    // Verify public settings immediately reflect all 3 updated booking channels
     const pubSettings = await request(app).get('/api/settings');
     expect(pubSettings.body.settings.whatsappNumber).toBe('94771234567');
     expect(pubSettings.body.settings.whatsappConfigured).toBe(true);
+    expect(pubSettings.body.settings.telegramHandle).toBe('ColomboTours');
+    expect(pubSettings.body.settings.telegramConfigured).toBe(true);
+    expect(pubSettings.body.settings.wechatId).toBe('ColomboToursLK');
+    expect(pubSettings.body.settings.wechatConfigured).toBe(true);
 
     // Reject spoofed non-image upload
     const badUpload = await agent
@@ -228,11 +261,36 @@ describe('Colombo Tours API', () => {
     const delCatRes = await agent.delete(`/api/admin/categories/${createdCat._id}`);
     expect(delCatRes.status).toBe(200);
 
-    // Clear WhatsApp number -> disables WhatsApp across site again
-    const clearWa = await agent
-      .put('/api/admin/settings')
-      .send({ whatsappNumber: '' });
-    expect(clearWa.status).toBe(200);
-    expect(clearWa.body.settings.whatsappConfigured).toBe(false);
+    // Upload a WeChat QR image, attach to settings, then clear and confirm cleanup
+    const qrUploadRes = await agent
+      .post('/api/admin/uploads')
+      .attach('photos', VALID_PNG_BUFFER, {
+        filename: 'wechat-qr.png',
+        contentType: 'image/png',
+      });
+    expect(qrUploadRes.status).toBe(201);
+    const qrPhoto = qrUploadRes.body.photos[0];
+
+    const saveQrRes = await agent.put('/api/admin/settings').send({
+      wechatQrUrl: qrPhoto.url,
+      wechatQrStorageProvider: qrPhoto.storageProvider,
+      wechatQrMediaId: qrPhoto.mediaId,
+    });
+    expect(saveQrRes.status).toBe(200);
+    expect(saveQrRes.body.settings.wechatQrUrl).toBe(qrPhoto.url);
+
+    // Clear all booking channels -> disables all 3 across site and cleans up QR media
+    const clearChannels = await agent.put('/api/admin/settings').send({
+      whatsappNumber: '',
+      telegramHandle: '',
+      wechatId: '',
+      wechatQrUrl: '',
+    });
+    expect(clearChannels.status).toBe(200);
+    expect(clearChannels.body.settings.whatsappConfigured).toBe(false);
+    expect(clearChannels.body.settings.telegramConfigured).toBe(false);
+    expect(clearChannels.body.settings.wechatConfigured).toBe(false);
+    const qrAfterClear = await Media.findById(qrPhoto.mediaId);
+    expect(qrAfterClear).toBeNull();
   });
 });
