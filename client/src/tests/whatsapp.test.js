@@ -4,8 +4,10 @@ import {
   buildServiceEnquiryMessage,
   buildTelegramUrl,
   buildVehicleEnquiryMessage,
+  buildVehicleShareUrl,
   buildWhatsAppUrl,
   formatTelegramDisplay,
+  formatVehicleDetailsSummary,
   isSafeQrUrl,
   isValidTelegramHandle,
   isValidTelegramLink,
@@ -20,6 +22,7 @@ import {
   resolveTelegramUrl,
   resolveWeChatAction,
   resolveWhatsAppUrl,
+  sanitizeVehicleSlug,
   validateRentalDates,
 } from '../lib/channels';
 
@@ -177,5 +180,51 @@ describe('WhatsApp helpers', () => {
       wechatEnabled: false,
     });
     expect(wcDisabled.active).toBe(false);
+  });
+
+  it('builds safe shareable vehicle links and includes vehicle details in booking messages', () => {
+    expect(sanitizeVehicleSlug('2024-bmw-i7-xdrive60')).toBe(
+      '2024-bmw-i7-xdrive60'
+    );
+    expect(sanitizeVehicleSlug('../admin')).toBe('');
+    expect(sanitizeVehicleSlug('<script>alert(1)</script>')).toBe('');
+
+    expect(
+      buildVehicleShareUrl(
+        '2024-bmw-i7-xdrive60',
+        'https://colombo-tours.vercel.app'
+      )
+    ).toBe('https://colombo-tours.vercel.app/?vehicle=2024-bmw-i7-xdrive60');
+    expect(
+      buildVehicleShareUrl('2024-bmw-i7-xdrive60', 'javascript:alert(1)')
+    ).toBe('');
+
+    const vehicle = {
+      name: '2024 BMW i7 xDrive60',
+      model: 'BMW i7 Luxury Flagship Sedan',
+      slug: '2024-bmw-i7-xdrive60',
+      specs: {
+        seats: 4,
+        transmission: 'Automatic',
+        luggage: '3 Suitcases',
+        fuelType: 'Electric',
+        chauffeur: 'Chauffeur Included',
+      },
+    };
+
+    expect(formatVehicleDetailsSummary(vehicle)).toBe(
+      'BMW i7 Luxury Flagship Sedan · 4 Seats · Automatic · 3 Suitcases · Electric · Chauffeur Included'
+    );
+
+    const msg = buildVehicleEnquiryMessage(vehicle, {
+      origin: 'https://colombo-tours.vercel.app',
+    });
+    expect(msg).toContain('2024 BMW i7 xDrive60');
+    expect(msg).toContain(
+      'Details: BMW i7 Luxury Flagship Sedan · 4 Seats · Automatic · 3 Suitcases · Electric · Chauffeur Included'
+    );
+    expect(msg).toContain(
+      'Vehicle link: https://colombo-tours.vercel.app/?vehicle=2024-bmw-i7-xdrive60'
+    );
   });
 });

@@ -27,7 +27,7 @@ export function VehicleCard({
     vehicle.categories?.find((c) => c.slug !== 'chauffeur')?.name ||
     vehicle.categories?.[0]?.name ||
     '';
-  const message = buildVehicleEnquiryMessage(vehicle.name);
+  const message = buildVehicleEnquiryMessage(vehicle);
 
   const chauffeurLabel = specs.chauffeur
     ? specs.chauffeur.toLowerCase().includes('chauffeur')
@@ -138,6 +138,7 @@ export function VehicleCard({
             message={message}
             subjectLabel={vehicle.name}
             whatsappNumber={whatsappNumber}
+            preferWeChatModal
             size="xs"
             whatsappTestId={`vehicle-whatsapp-${vehicle.slug}`}
             telegramTestId={`vehicle-telegram-${vehicle.slug}`}

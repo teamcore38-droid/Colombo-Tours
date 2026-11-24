@@ -1,5 +1,6 @@
 import { AlertCircle, CarFront, RotateCcw } from 'lucide-react';
-import { useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { CategoryPills } from '../components/CategoryPills';
 import { BookingChannelGroup } from '../components/ChannelButtons';
 import { FloatingContactButtons } from '../components/FloatingContactButtons';
@@ -13,6 +14,7 @@ import { VehicleCard } from '../components/VehicleCard';
 import { VehicleSpecsModal } from '../components/VehicleSpecsModal';
 import { WeChatEnquiryModal } from '../components/WeChatEnquiryModal';
 import { useSite } from '../context/SiteContext';
+import { sanitizeVehicleSlug } from '../lib/channels';
 
 const INITIAL_FILTERS = {
   transmission: 'all',
@@ -23,12 +25,47 @@ const INITIAL_FILTERS = {
 export function HomePage() {
   const { settings, categories, services, vehicles, loading, error, refreshSiteData } =
     useSite();
+  const [searchParams, setSearchParams] = useSearchParams();
 
   const [search, setSearch] = useState('');
   const [activeCategory, setActiveCategory] = useState('all');
   const [filters, setFilters] = useState(INITIAL_FILTERS);
   const [specsVehicle, setSpecsVehicle] = useState(null);
   const [enquiryVehicleName, setEnquiryVehicleName] = useState('');
+
+  // Auto-open matching published vehicle when visiting a shared deep link (/?vehicle=<slug>)
+  const requestedVehicleSlug = sanitizeVehicleSlug(
+    searchParams.get('vehicle') || ''
+  );
+
+  useEffect(() => {
+    if (!requestedVehicleSlug || !vehicles.length) return;
+    const match = vehicles.find((v) => v.slug === requestedVehicleSlug);
+    if (match) {
+      setSpecsVehicle((curr) => (curr?.slug === match.slug ? curr : match));
+    }
+  }, [requestedVehicleSlug, vehicles]);
+
+  const handleOpenSpecs = useCallback(
+    (vehicle) => {
+      setSpecsVehicle(vehicle);
+      if (vehicle?.slug) {
+        const next = new URLSearchParams(searchParams);
+        next.set('vehicle', vehicle.slug);
+        setSearchParams(next, { replace: true });
+      }
+    },
+    [searchParams, setSearchParams]
+  );
+
+  const handleCloseSpecs = useCallback(() => {
+    setSpecsVehicle(null);
+    if (searchParams.has('vehicle')) {
+      const next = new URLSearchParams(searchParams);
+      next.delete('vehicle');
+      setSearchParams(next, { replace: true });
+    }
+  }, [searchParams, setSearchParams]);
 
   const featuredVehicles = useMemo(() => {
     const featured = vehicles.filter((v) => v.isFeatured);
@@ -119,7 +156,7 @@ export function HomePage() {
           featuredVehicles={featuredVehicles}
           settings={settings}
           loading={loading}
-          onViewSpecs={setSpecsVehicle}
+          onViewSpecs={handleOpenSpecs}
         />
 
         {/* Subtle client-review banner if no booking channel has been configured yet */}
@@ -307,7 +344,7 @@ export function HomePage() {
                     vehicle={vehicle}
                     whatsappNumber={settings.whatsappNumber}
                     eager={index < 2}
-                    onViewSpecs={setSpecsVehicle}
+                    onViewSpecs={handleOpenSpecs}
                     onSelectForEnquiry={handleSelectForEnquiry}
                   />
                 ))}
@@ -349,7 +386,7 @@ export function HomePage() {
       <VehicleSpecsModal
         vehicle={specsVehicle}
         whatsappNumber={settings.whatsappNumber}
-        onClose={() => setSpecsVehicle(null)}
+        onClose={handleCloseSpecs}
         onSelectForEnquiry={handleSelectForEnquiry}
       />
     </div>

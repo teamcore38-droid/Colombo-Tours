@@ -75,6 +75,7 @@ export function ServicesSection({ services = [], whatsappNumber }) {
                   message={message}
                   subjectLabel={service.name}
                   whatsappNumber={whatsappNumber}
+                  preferWeChatModal
                   size="xs"
                   whatsappTestId={`service-whatsapp-${service.slug}`}
                   telegramTestId={`service-telegram-${service.slug}`}

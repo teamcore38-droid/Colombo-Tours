@@ -154,6 +154,7 @@ export function WeChatButton({
   wechatEnabled,
   message,
   subjectLabel = '',
+  preferModalForMessage = false,
   children = 'WeChat',
   variant = 'outline',
   size = 'sm',
@@ -206,7 +207,15 @@ export function WeChatButton({
     );
   }
 
-  if (action.mode === 'link' && action.url) {
+  const trimmedMessage = String(message || '').trim();
+  const shouldOpenModalWithLink =
+    action.mode === 'link' &&
+    Boolean(action.url) &&
+    preferModalForMessage &&
+    Boolean(trimmedMessage) &&
+    Boolean(site?.openWeChatEnquiry);
+
+  if (action.mode === 'link' && action.url && !shouldOpenModalWithLink) {
     return (
       <a
         href={action.url}
@@ -235,11 +244,11 @@ export function WeChatButton({
       onClick={(e) => {
         onClick?.(e);
         site?.openWeChatEnquiry?.({
-          message: String(message || '').trim(),
+          message: trimmedMessage,
           subjectLabel,
-          wechatId: action.wechatId,
-          wechatQrUrl: action.wechatQrUrl,
-          wechatLink: action.wechatLink,
+          wechatId: action.wechatId || s?.wechatId || '',
+          wechatQrUrl: action.wechatQrUrl || s?.wechatQrUrl || '',
+          wechatLink: action.url || action.wechatLink || s?.wechatLink || '',
         });
       }}
       className={`${baseClass} cursor-pointer`}
@@ -275,6 +284,7 @@ export function BookingChannelGroup({
   wechatQrUrl,
   wechatMode,
   wechatEnabled,
+  preferWeChatModal = false,
   disabled = false,
   size = 'xs',
   layout = 'grid',
@@ -339,6 +349,7 @@ export function BookingChannelGroup({
         wechatEnabled={wechatEnabled}
         message={message}
         subjectLabel={subjectLabel}
+        preferModalForMessage={preferWeChatModal}
         disabled={disabled}
         variant="outline"
         size={size}

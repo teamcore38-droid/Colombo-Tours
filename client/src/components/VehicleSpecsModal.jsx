@@ -40,7 +40,7 @@ export function VehicleSpecsModal({
   const photos = vehicle.photos || [];
   const activePhoto = photos[photoIdx] || photos[0] || null;
   const specs = vehicle.specs || {};
-  const message = buildVehicleEnquiryMessage(vehicle.name);
+  const message = buildVehicleEnquiryMessage(vehicle);
 
   const specRows = [
     specs.seats
@@ -232,6 +232,7 @@ export function VehicleSpecsModal({
             message={message}
             subjectLabel={vehicle.name}
             whatsappNumber={whatsappNumber}
+            preferWeChatModal
             size="sm"
             whatsappTestId="modal-whatsapp-btn"
             telegramTestId="modal-telegram-btn"

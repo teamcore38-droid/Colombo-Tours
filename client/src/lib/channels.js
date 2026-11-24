@@ -260,12 +260,91 @@ export function resolveWeChatAction({
   };
 }
 
+// --- Shareable Vehicle Link & Details Helpers ---
+const SAFE_SLUG_REGEX = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
+
+export function sanitizeVehicleSlug(raw) {
+  if (typeof raw !== 'string') return '';
+  const cleaned = raw.trim().toLowerCase();
+  if (!cleaned || cleaned.length > 150) return '';
+  return SAFE_SLUG_REGEX.test(cleaned) ? cleaned : '';
+}
+
+export function buildVehicleShareUrl(slug, originOverride = '') {
+  const safeSlug = sanitizeVehicleSlug(slug);
+  if (!safeSlug) return '';
+
+  const rawOrigin =
+    originOverride ||
+    (typeof window !== 'undefined' && window.location?.origin
+      ? window.location.origin
+      : '');
+  if (!rawOrigin) return '';
+
+  try {
+    const parsed = new URL(rawOrigin);
+    if (parsed.protocol !== 'https:' && parsed.protocol !== 'http:') {
+      return '';
+    }
+    return `${parsed.origin}/?vehicle=${encodeURIComponent(safeSlug)}`;
+  } catch {
+    return '';
+  }
+}
+
+export function formatVehicleDetailsSummary(vehicle) {
+  if (!vehicle || typeof vehicle !== 'object') return '';
+  const parts = [];
+  const name = String(vehicle.name || '').trim();
+  const model = String(vehicle.model || '').trim();
+  const specs = vehicle.specs || {};
+
+  if (model && model.toLowerCase() !== name.toLowerCase()) {
+    parts.push(model);
+  }
+  if (specs.seats) {
+    parts.push(`${specs.seats} Seats`);
+  }
+  if (specs.transmission) {
+    parts.push(String(specs.transmission).trim());
+  }
+  if (specs.luggage) {
+    parts.push(String(specs.luggage).trim());
+  }
+  if (specs.fuelType) {
+    parts.push(String(specs.fuelType).trim());
+  }
+  if (specs.chauffeur) {
+    parts.push(String(specs.chauffeur).trim());
+  }
+
+  return parts.filter(Boolean).join(' · ');
+}
+
 // --- Enquiry Message Builders (Always English so staff read bookings clearly) ---
-export function buildVehicleEnquiryMessage(vehicleName, options = {}) {
-  const name = String(vehicleName || 'a vehicle').trim();
-  const lines = [];
+export function buildVehicleEnquiryMessage(vehicleOrName, options = {}) {
+  const vehicleObj =
+    vehicleOrName && typeof vehicleOrName === 'object'
+      ? vehicleOrName
+      : options.vehicle && typeof options.vehicle === 'object'
+        ? options.vehicle
+        : null;
+
+  const name = String(
+    (typeof vehicleOrName === 'string' ? vehicleOrName : vehicleObj?.name) ||
+      'a vehicle'
+  ).trim();
+
+  const details =
+    String(options.details || '').trim() ||
+    formatVehicleDetailsSummary(vehicleObj);
+  const vehicleUrl =
+    String(options.vehicleUrl || '').trim() ||
+    buildVehicleShareUrl(vehicleObj?.slug || options.slug || '', options.origin);
 
   const hasExtras =
+    Boolean(details) ||
+    Boolean(vehicleUrl) ||
     Boolean(options.pickupLocation?.trim()) ||
     Boolean(options.pickupDate?.trim()) ||
     Boolean(options.returnDate?.trim()) ||
@@ -275,7 +354,13 @@ export function buildVehicleEnquiryMessage(vehicleName, options = {}) {
     return `Hello Colombo Tours, I’m interested in renting the ${name}. Could you confirm availability and share the rate?`;
   }
 
-  lines.push(`Hello Colombo Tours, I’m interested in renting the ${name}.`);
+  const lines = [`Hello Colombo Tours, I’m interested in renting the ${name}.`];
+  if (details) {
+    lines.push(`Details: ${details}`);
+  }
+  if (vehicleUrl) {
+    lines.push(`Vehicle link: ${vehicleUrl}`);
+  }
   if (options.pickupLocation?.trim()) {
     lines.push(`Pickup location: ${options.pickupLocation.trim()}`);
   }
@@ -320,13 +405,17 @@ export function buildServiceEnquiryMessage(serviceName, options = {}) {
 export function buildQuickEnquiryMessage({
   targetType = 'general',
   targetName = '',
+  vehicle = null,
+  origin = '',
   pickupLocation = '',
   pickupDate = '',
   returnDate = '',
   chauffeurPreferred = false,
 } = {}) {
-  if (targetType === 'vehicle' && targetName) {
-    return buildVehicleEnquiryMessage(targetName, {
+  if (targetType === 'vehicle' && (targetName || vehicle)) {
+    return buildVehicleEnquiryMessage(vehicle || targetName, {
+      vehicle,
+      origin,
       pickupLocation,
       pickupDate,
       returnDate,

@@ -75,11 +75,21 @@ export function QuickEnquiryPanel({
     return { targetType: 'general', targetName: '' };
   }, [effectiveTarget]);
 
+  const matchedVehicle = useMemo(() => {
+    if (targetType !== 'vehicle' || !targetName) return null;
+    return (
+      vehicles.find(
+        (v) => v.name === targetName || v.slug === targetName
+      ) || null
+    );
+  }, [targetType, targetName, vehicles]);
+
   const message = useMemo(
     () =>
       buildQuickEnquiryMessage({
         targetType,
         targetName,
+        vehicle: matchedVehicle,
         pickupLocation,
         pickupDate,
         returnDate,
@@ -88,6 +98,7 @@ export function QuickEnquiryPanel({
     [
       targetType,
       targetName,
+      matchedVehicle,
       pickupLocation,
       pickupDate,
       returnDate,
@@ -299,6 +310,7 @@ export function QuickEnquiryPanel({
             telegramHandle={effectiveTg}
             wechatId={effectiveWcId}
             wechatQrUrl={effectiveWcQr}
+            preferWeChatModal
             disabled={Boolean(dateError)}
             size="xs"
             whatsappTestId="quick-enquiry-whatsapp-btn"

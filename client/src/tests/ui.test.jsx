@@ -140,7 +140,7 @@ function createBootstrapPayload({
   };
 }
 
-function renderStorefront(payload) {
+function renderStorefront(payload, { initialEntries = ['/'] } = {}) {
   vi.stubGlobal(
     'fetch',
     vi.fn().mockResolvedValue({
@@ -155,7 +155,7 @@ function renderStorefront(payload) {
     <ThemeProvider>
       <LanguageProvider>
         <SiteProvider>
-          <MemoryRouter>
+          <MemoryRouter initialEntries={initialEntries}>
             <HomePage />
           </MemoryRouter>
         </SiteProvider>
@@ -245,11 +245,13 @@ describe('Colombo Tours Storefront UI', () => {
     );
     expect(mercBtn.tagName).toBe('A');
     expect(mercBtn.getAttribute('href')).toContain('https://wa.me/94771234567?text=');
-    expect(decodeURIComponent(mercBtn.getAttribute('href'))).toContain(
-      '2024 Mercedes-Benz S-Class'
-    );
+    const decodedMercWa = decodeURIComponent(mercBtn.getAttribute('href'));
+    expect(decodedMercWa).toContain('2024 Mercedes-Benz S-Class');
+    expect(decodedMercWa).toContain('S 500 AMG');
+    expect(decodedMercWa).toContain('5 Seats');
+    expect(decodedMercWa).toContain('?vehicle=2024-mercedes-benz-s-class');
 
-    // Telegram direct vehicle enquiry link
+    // Telegram direct vehicle enquiry link also includes details and vehicle link
     const mercTgBtn = screen.getByTestId(
       'vehicle-telegram-2024-mercedes-benz-s-class'
     );
@@ -257,11 +259,11 @@ describe('Colombo Tours Storefront UI', () => {
     expect(mercTgBtn.getAttribute('href')).toContain(
       'https://t.me/ColomboTours?text='
     );
-    expect(decodeURIComponent(mercTgBtn.getAttribute('href'))).toContain(
-      '2024 Mercedes-Benz S-Class'
-    );
+    const decodedMercTg = decodeURIComponent(mercTgBtn.getAttribute('href'));
+    expect(decodedMercTg).toContain('2024 Mercedes-Benz S-Class');
+    expect(decodedMercTg).toContain('?vehicle=2024-mercedes-benz-s-class');
 
-    // WeChat button opens concierge modal with WeChat ID, QR code, and pre-filled message
+    // WeChat button opens concierge modal with WeChat ID, QR code, vehicle details & link
     await user.click(
       screen.getByTestId('vehicle-wechat-2024-mercedes-benz-s-class')
     );
@@ -273,6 +275,9 @@ describe('Colombo Tours Storefront UI', () => {
     expect(within(wcModal).getByTestId('wechat-modal-qr')).toBeInTheDocument();
     expect(within(wcModal).getByTestId('wechat-modal-message')).toHaveTextContent(
       '2024 Mercedes-Benz S-Class'
+    );
+    expect(within(wcModal).getByTestId('wechat-modal-message')).toHaveTextContent(
+      '?vehicle=2024-mercedes-benz-s-class'
     );
     await user.click(screen.getByTestId('close-wechat-modal'));
     expect(screen.queryByTestId('wechat-enquiry-modal')).not.toBeInTheDocument();
@@ -307,6 +312,8 @@ describe('Colombo Tours Storefront UI', () => {
     expect(qeBtn.tagName).toBe('A');
     const decodedQe = decodeURIComponent(qeBtn.getAttribute('href'));
     expect(decodedQe).toContain('Land Rover Defender 110');
+    expect(decodedQe).toContain('Defender HSE');
+    expect(decodedQe).toContain('?vehicle=land-rover-defender-110');
     expect(decodedQe).toContain('Pickup location: Colombo City');
     expect(decodedQe).toContain('Pickup date: 2099-05-10');
     expect(decodedQe).toContain('Return date: 2099-05-14');
@@ -488,7 +495,8 @@ describe('Colombo Tours Storefront UI', () => {
     expect(isValidLanguageCode('<script>')).toBe(false);
   });
 
-  it('supports Direct Link mode and channel enable toggles across WhatsApp, Telegram, and WeChat', async () => {
+  it('supports Direct Link mode, carries vehicle details into WeChat link modal, and opens /?vehicle=<slug> deep links safely', async () => {
+    const user = userEvent.setup();
     renderStorefront(
       createBootstrapPayload({
         whatsappLink: 'https://wa.me/message/KSBZDVJTSEJYC1?src=qr',
@@ -500,12 +508,19 @@ describe('Colombo Tours Storefront UI', () => {
         wechatLink: 'https://u.wechat.com/kHm8VCFbetF_uPu8roHEfig?s=2',
         wechatMode: 'link',
         wechatEnabled: true,
-      })
+      }),
+      { initialEntries: ['/?vehicle=land-rover-defender-110'] }
     );
 
     await waitFor(() =>
       expect(screen.getByTestId('fleet-grid')).toBeInTheDocument()
     );
+
+    // Deep link /?vehicle=land-rover-defender-110 automatically opens Defender specs modal
+    const specsModal = await screen.findByTestId('vehicle-specs-modal');
+    expect(within(specsModal).getByText('Land Rover Defender 110')).toBeInTheDocument();
+    await user.click(screen.getByTestId('close-specs-modal'));
+    expect(screen.queryByTestId('vehicle-specs-modal')).not.toBeInTheDocument();
 
     const waCard = screen.getByTestId(
       'vehicle-whatsapp-2024-mercedes-benz-s-class'
@@ -519,18 +534,26 @@ describe('Colombo Tours Storefront UI', () => {
       'vehicle-telegram-2024-mercedes-benz-s-class'
     );
     expect(tgCard.tagName).toBe('A');
-    expect(tgCard.getAttribute('href')).toContain(
-      'https://t.me/COLOMBOTOURS?text='
-    );
+    const decodedTg = decodeURIComponent(tgCard.getAttribute('href'));
+    expect(decodedTg).toContain('https://t.me/COLOMBOTOURS?text=');
+    expect(decodedTg).toContain('?vehicle=2024-mercedes-benz-s-class');
 
+    // Vehicle card WeChat button opens modal carrying details + link + direct u.wechat.com link CTA
     const wcCard = screen.getByTestId(
       'vehicle-wechat-2024-mercedes-benz-s-class'
     );
-    expect(wcCard.tagName).toBe('A');
-    expect(wcCard.getAttribute('href')).toBe(
+    await user.click(wcCard);
+    const wcModal = screen.getByTestId('wechat-enquiry-modal');
+    expect(within(wcModal).getByTestId('wechat-modal-message')).toHaveTextContent(
+      '?vehicle=2024-mercedes-benz-s-class'
+    );
+    const wcDirectBtn = within(wcModal).getByTestId('wechat-direct-link-btn');
+    expect(wcDirectBtn.getAttribute('href')).toBe(
       'https://u.wechat.com/kHm8VCFbetF_uPu8roHEfig?s=2'
     );
+    await user.click(screen.getByTestId('close-wechat-modal'));
 
+    // General floating WeChat button still links directly to u.wechat.com
     const floatingWc = screen.getByTestId('floating-wechat-btn');
     expect(floatingWc.tagName).toBe('A');
     expect(floatingWc.getAttribute('href')).toBe(

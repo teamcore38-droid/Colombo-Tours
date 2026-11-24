@@ -29,7 +29,7 @@ export function HeroBanner({
   const activeVehicle = featuredVehicles[safeIndex] || null;
 
   const enquiryMessage = activeVehicle
-    ? buildVehicleEnquiryMessage(activeVehicle.name)
+    ? buildVehicleEnquiryMessage(activeVehicle)
     : settings.supportGreeting;
 
   const handlePrev = useCallback(() => {
@@ -221,6 +221,7 @@ export function HeroBanner({
                 wechatQrUrl={settings.wechatQrUrl}
                 wechatMode={settings.wechatMode}
                 wechatEnabled={settings.wechatEnabled}
+                preferWeChatModal={Boolean(activeVehicle)}
                 size="sm"
                 layout="row"
                 whatsappTestId="hero-whatsapp-btn"
