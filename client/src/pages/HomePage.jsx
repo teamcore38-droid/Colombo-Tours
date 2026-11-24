@@ -1,6 +1,6 @@
 import { AlertCircle, CarFront, RotateCcw } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { CategoryPills } from '../components/CategoryPills';
 import { BookingChannelGroup } from '../components/ChannelButtons';
 import { FloatingContactButtons } from '../components/FloatingContactButtons';
@@ -25,6 +25,8 @@ const INITIAL_FILTERS = {
 export function HomePage() {
   const { settings, categories, services, vehicles, loading, error, refreshSiteData } =
     useSite();
+  const params = useParams();
+  const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
 
   const [search, setSearch] = useState('');
@@ -33,9 +35,9 @@ export function HomePage() {
   const [specsVehicle, setSpecsVehicle] = useState(null);
   const [enquiryVehicleName, setEnquiryVehicleName] = useState('');
 
-  // Auto-open matching published vehicle when visiting a shared deep link (/?vehicle=<slug>)
+  // Auto-open matching published vehicle when visiting /v/<slug> or /?vehicle=<slug>
   const requestedVehicleSlug = sanitizeVehicleSlug(
-    searchParams.get('vehicle') || ''
+    params.slug || searchParams.get('vehicle') || ''
   );
 
   useEffect(() => {
@@ -50,22 +52,32 @@ export function HomePage() {
     (vehicle) => {
       setSpecsVehicle(vehicle);
       if (vehicle?.slug) {
+        if (params.slug) {
+          navigate(`/?vehicle=${encodeURIComponent(vehicle.slug)}`, {
+            replace: true,
+          });
+          return;
+        }
         const next = new URLSearchParams(searchParams);
         next.set('vehicle', vehicle.slug);
         setSearchParams(next, { replace: true });
       }
     },
-    [searchParams, setSearchParams]
+    [navigate, params.slug, searchParams, setSearchParams]
   );
 
   const handleCloseSpecs = useCallback(() => {
     setSpecsVehicle(null);
+    if (params.slug) {
+      navigate('/', { replace: true });
+      return;
+    }
     if (searchParams.has('vehicle')) {
       const next = new URLSearchParams(searchParams);
       next.delete('vehicle');
       setSearchParams(next, { replace: true });
     }
-  }, [searchParams, setSearchParams]);
+  }, [navigate, params.slug, searchParams, setSearchParams]);
 
   const featuredVehicles = useMemo(() => {
     const featured = vehicles.filter((v) => v.isFeatured);

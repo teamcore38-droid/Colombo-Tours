@@ -32,6 +32,7 @@ export function App() {
             <Suspense fallback={<RouteFallback />}>
               <Routes>
                 <Route path="/" element={<HomePage />} />
+                <Route path="/v/:slug" element={<HomePage />} />
                 <Route path="/admin/login" element={<AdminLoginPage />} />
                 <Route path="/admin" element={<AdminDashboardPage />} />
                 <Route path="*" element={<Navigate to="/" replace />} />

@@ -1,5 +1,7 @@
 import { Router } from 'express';
+import rateLimit from 'express-rate-limit';
 import mongoose from 'mongoose';
+import { env } from '../config/env.js';
 import { requireAdmin } from '../middleware/auth.js';
 import { imageUpload } from '../middleware/upload.js';
 import { Category } from '../models/Category.js';
@@ -33,6 +35,37 @@ const router = Router();
 
 // All admin routes strictly require authenticated staff
 router.use(requireAdmin);
+
+const telegramVerifyLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: env.isTest ? 1000 : 30,
+  standardHeaders: 'draft-7',
+  legacyHeaders: false,
+  message: {
+    error:
+      'Too many Telegram verification checks. Please wait a few minutes and try again.',
+  },
+});
+
+const STRICT_TELEGRAM_USERNAME_REGEX = /^[a-zA-Z][a-zA-Z0-9_]{3,30}[a-zA-Z0-9]$/;
+const STRICT_TELEGRAM_PHONE_REGEX = /^\+[1-9]\d{7,14}$/;
+
+function extractTelegramDisplayName(html) {
+  const match = html.match(
+    /<div class="tgme_page_title"[^>]*>([\s\S]*?)<\/div>/i
+  );
+  if (!match) return '';
+  return match[1]
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/\s+/g, ' ')
+    .trim()
+    .slice(0, 80);
+}
 
 async function resolveCategoryIds(rawCategories) {
   if (!Array.isArray(rawCategories) || rawCategories.length === 0) {
@@ -970,5 +1003,125 @@ router.put('/settings', async (req, res, next) => {
     return next(error);
   }
 });
+
+/**
+ * SSRF-safe, rate-limited verification of whether a Telegram @username actually exists
+ * on Telegram (preventing "User not found" errors on customers' mobile apps).
+ */
+router.post(
+  '/settings/verify-telegram',
+  telegramVerifyLimiter,
+  async (req, res) => {
+    const mode = req.body?.mode === 'link' ? 'link' : 'handle';
+    let targetRaw = '';
+
+    if (mode === 'link') {
+      const safeLink = sanitizeTelegramLink(String(req.body?.link || ''));
+      if (!safeLink) {
+        return res.status(400).json({
+          error:
+            'Enter a valid HTTPS Telegram link (e.g., https://t.me/YourUsername) before verifying.',
+        });
+      }
+      try {
+        const parsed = new URL(safeLink);
+        const pathSegment = parsed.pathname.replace(/^\/+|\/+$/g, '');
+        if (
+          pathSegment.startsWith('+') &&
+          !STRICT_TELEGRAM_PHONE_REGEX.test(pathSegment)
+        ) {
+          return res.json({
+            reachable: null,
+            status: 'invite_link',
+            target: safeLink,
+            message:
+              'Private Telegram invite links cannot be checked automatically. Please test by opening it in the Telegram mobile app.',
+          });
+        }
+        targetRaw = pathSegment;
+      } catch {
+        return res.status(400).json({ error: 'Invalid Telegram link.' });
+      }
+    } else {
+      targetRaw = String(req.body?.handle || '').trim();
+    }
+
+    const normalized = normalizeTelegramHandle(targetRaw);
+    if (!isValidTelegramHandle(normalized)) {
+      return res.status(400).json({
+        error:
+          'Enter a valid Telegram @username (5–32 letters, numbers, underscores) or international phone number (+94...).',
+      });
+    }
+
+    if (STRICT_TELEGRAM_PHONE_REGEX.test(normalized)) {
+      return res.json({
+        reachable: null,
+        status: 'phone_privacy_dependent',
+        target: normalized,
+        message:
+          'Phone links (t.me/+...) work on mobile only when Telegram Settings → Privacy & Security → Phone Number → "Who can find me by my number" is set to Everybody. For maximum reliability, a public @username is recommended.',
+      });
+    }
+
+    if (!STRICT_TELEGRAM_USERNAME_REGEX.test(normalized)) {
+      return res.status(400).json({ error: 'Invalid Telegram username.' });
+    }
+
+    // Hardcoded Telegram origin + strictly regex-validated username -> zero SSRF surface
+    const checkUrl = `https://t.me/${normalized}`;
+    try {
+      const response = await fetch(checkUrl, {
+        method: 'GET',
+        redirect: 'manual',
+        headers: {
+          'User-Agent': 'ColomboToursAdminCheck/1.0',
+          Accept: 'text/html',
+        },
+        signal: AbortSignal.timeout(4500),
+      });
+
+      if (!response.ok) {
+        return res.json({
+          reachable: null,
+          status: 'check_unavailable',
+          target: `@${normalized}`,
+          message:
+            'Could not verify this username with Telegram right now. Please test directly in the Telegram mobile app.',
+        });
+      }
+
+      const html = (await response.text()).slice(0, 65536);
+      const exists = html.includes('tgme_page_title');
+      if (exists) {
+        const displayName = extractTelegramDisplayName(html);
+        return res.json({
+          reachable: true,
+          status: 'active',
+          target: `@${normalized}`,
+          displayName,
+          message: displayName
+            ? `Active on Telegram (${displayName}). Mobile and web visitors will open this chat directly.`
+            : `Active on Telegram. Mobile and web visitors will open @${normalized} directly.`,
+        });
+      }
+
+      return res.json({
+        reachable: false,
+        status: 'not_found',
+        target: `@${normalized}`,
+        message: `Telegram username @${normalized} was not found on Telegram. Customers on mobile will see "User not found" until you claim @${normalized} in Telegram (Settings → Username), enter your active @username, or switch to your Telegram phone number (+94...).`,
+      });
+    } catch {
+      return res.json({
+        reachable: null,
+        status: 'check_unavailable',
+        target: `@${normalized}`,
+        message:
+          'Could not reach Telegram servers right now to verify this username. Please test directly on your phone.',
+      });
+    }
+  }
+);
 
 export default router;

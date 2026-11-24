@@ -148,8 +148,11 @@ export function buildTelegramUrl(rawHandle, message) {
   if (!isValidTelegramHandle(normalized)) {
     return null;
   }
-  const encoded = encodeURIComponent(String(message || '').trim());
-  return `https://t.me/${normalized}?text=${encoded}`;
+  const trimmedMsg = String(message || '').trim();
+  if (!trimmedMsg) {
+    return `https://t.me/${normalized}`;
+  }
+  return `https://t.me/${normalized}?text=${encodeURIComponent(trimmedMsg)}`;
 }
 
 export function resolveTelegramUrl({
@@ -167,11 +170,12 @@ export function resolveTelegramUrl({
       const parsed = new URL(safeLink);
       const pathSegment = parsed.pathname.replace(/^\/+|\/+$/g, '');
       const trimmedMsg = String(message || '').trim();
-      // If link points directly to a Telegram username (not an invite +link) with no existing query, attach pre-filled text
+      // Attach pre-filled text for public usernames and E.164 phone links (skip private invite hashes)
       if (
         trimmedMsg &&
         !parsed.search &&
-        TELEGRAM_USERNAME_REGEX.test(pathSegment)
+        (TELEGRAM_USERNAME_REGEX.test(pathSegment) ||
+          TELEGRAM_PHONE_REGEX.test(pathSegment))
       ) {
         return `${safeLink}?text=${encodeURIComponent(trimmedMsg)}`;
       }
@@ -286,10 +290,47 @@ export function buildVehicleShareUrl(slug, originOverride = '') {
     if (parsed.protocol !== 'https:' && parsed.protocol !== 'http:') {
       return '';
     }
-    return `${parsed.origin}/?vehicle=${encodeURIComponent(safeSlug)}`;
+    return `${parsed.origin}/v/${encodeURIComponent(safeSlug)}`;
   } catch {
     return '';
   }
+}
+
+/**
+ * Safely parses a "Link: https://.../v/<slug>" line in an enquiry preview
+ * so website modals can render a clean clickable "Link" anchor without XSS.
+ */
+export function parseSafeVehicleLinkLine(line) {
+  if (typeof line !== 'string') return null;
+  const match = line.match(/^(?:Vehicle\s+link|Link):\s*(https?:\/\/\S+)$/i);
+  if (!match) return null;
+
+  let parsed;
+  try {
+    parsed = new URL(match[1]);
+  } catch {
+    return null;
+  }
+
+  if (parsed.protocol !== 'https:' && parsed.protocol !== 'http:') {
+    return null;
+  }
+
+  const shortMatch = parsed.pathname.match(/^\/v\/([a-z0-9]+(?:-[a-z0-9]+)*)$/i);
+  const querySlug = sanitizeVehicleSlug(parsed.searchParams.get('vehicle') || '');
+  const safeSlug = shortMatch
+    ? sanitizeVehicleSlug(shortMatch[1])
+    : parsed.pathname === '/'
+      ? querySlug
+      : '';
+
+  if (!safeSlug) return null;
+
+  return {
+    label: 'Link',
+    href: parsed.toString(),
+    slug: safeSlug,
+  };
 }
 
 export function formatVehicleDetailsSummary(vehicle) {
@@ -359,7 +400,7 @@ export function buildVehicleEnquiryMessage(vehicleOrName, options = {}) {
     lines.push(`Details: ${details}`);
   }
   if (vehicleUrl) {
-    lines.push(`Vehicle link: ${vehicleUrl}`);
+    lines.push(`Link: ${vehicleUrl}`);
   }
   if (options.pickupLocation?.trim()) {
     lines.push(`Pickup location: ${options.pickupLocation.trim()}`);

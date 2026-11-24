@@ -32,7 +32,6 @@ import { useSite } from '../context/SiteContext';
 import { useTheme } from '../context/ThemeContext';
 import { apiFetch, resolveApiUrl } from '../lib/api';
 import {
-  buildTelegramUrl,
   buildVehicleEnquiryMessage,
   buildWhatsAppUrl,
   formatTelegramDisplay,
@@ -45,7 +44,7 @@ import {
   normalizeTelegramHandle,
   normalizeWeChatId,
   normalizeWhatsAppNumber,
-  sanitizeTelegramLink,
+  resolveTelegramUrl,
   sanitizeWeChatLink,
   sanitizeWhatsAppLink,
 } from '../lib/channels';
@@ -91,6 +90,8 @@ export function AdminDashboardPage() {
     wechat: false,
   });
   const [uploadingWeChatQr, setUploadingWeChatQr] = useState(false);
+  const [verifyingTelegram, setVerifyingTelegram] = useState(false);
+  const [telegramVerifyResult, setTelegramVerifyResult] = useState(null);
 
   const [fleetSearch, setFleetSearch] = useState('');
   const [fleetStatus, setFleetStatus] = useState('all');
@@ -427,6 +428,31 @@ export function AdminDashboardPage() {
     }
   };
 
+  const handleVerifyTelegram = async () => {
+    setVerifyingTelegram(true);
+    setTelegramVerifyResult(null);
+    setError('');
+    try {
+      const res = await apiFetch('/api/admin/settings/verify-telegram', {
+        method: 'POST',
+        body: {
+          mode: settingsForm.telegramMode,
+          handle: settingsForm.telegramHandle.trim(),
+          link: settingsForm.telegramLink.trim(),
+        },
+      });
+      setTelegramVerifyResult(res);
+    } catch (err) {
+      setTelegramVerifyResult({
+        reachable: false,
+        status: 'invalid',
+        message: err.message || 'Could not verify Telegram target.',
+      });
+    } finally {
+      setVerifyingTelegram(false);
+    }
+  };
+
   const handleSaveSettings = async (e, overrides = null) => {
     e?.preventDefault();
     setSavingSettings(true);
@@ -520,15 +546,17 @@ export function AdminDashboardPage() {
   const previewTgHandle = normalizeTelegramHandle(settingsForm.telegramHandle);
   const previewTgValid = isValidTelegramHandle(previewTgHandle);
   const previewTgLinkValid = isValidTelegramLink(settingsForm.telegramLink);
-  const sampleTgUrl =
-    settingsForm.telegramMode === 'link'
-      ? sanitizeTelegramLink(settingsForm.telegramLink) || null
-      : previewTgValid
-        ? buildTelegramUrl(
-            previewTgHandle,
-            buildVehicleEnquiryMessage('2024 Mercedes-Benz S-Class')
-          )
-        : null;
+  const sampleTgUrl = resolveTelegramUrl({
+    telegramHandle: settingsForm.telegramHandle,
+    telegramLink: settingsForm.telegramLink,
+    telegramMode: settingsForm.telegramMode,
+    telegramEnabled: true,
+    message: buildVehicleEnquiryMessage('2024 Mercedes-Benz S-Class', {
+      slug: '2024-mercedes-benz-s-class',
+    }),
+  });
+  const canVerifyTelegram =
+    settingsForm.telegramMode === 'link' ? previewTgLinkValid : previewTgValid;
 
   const previewWeChatId = normalizeWeChatId(settingsForm.wechatId);
   const previewWeChatValid = isValidWeChatId(previewWeChatId);
@@ -1467,12 +1495,13 @@ export function AdminDashboardPage() {
                           name="telegramMode"
                           value="handle"
                           checked={settingsForm.telegramMode === 'handle'}
-                          onChange={() =>
+                          onChange={() => {
+                            setTelegramVerifyResult(null);
                             setSettingsForm({
                               ...settingsForm,
                               telegramMode: 'handle',
-                            })
-                          }
+                            });
+                          }}
                           data-testid="admin-telegram-mode-handle"
                           className="accent-[#D4AF37]"
                         />
@@ -1491,12 +1520,13 @@ export function AdminDashboardPage() {
                           name="telegramMode"
                           value="link"
                           checked={settingsForm.telegramMode === 'link'}
-                          onChange={() =>
+                          onChange={() => {
+                            setTelegramVerifyResult(null);
                             setSettingsForm({
                               ...settingsForm,
                               telegramMode: 'link',
-                            })
-                          }
+                            });
+                          }}
                           data-testid="admin-telegram-mode-link"
                           className="accent-[#D4AF37]"
                         />
@@ -1532,12 +1562,13 @@ export function AdminDashboardPage() {
                         id="settings-telegram"
                         type="text"
                         value={settingsForm.telegramHandle}
-                        onChange={(e) =>
+                        onChange={(e) => {
+                          setTelegramVerifyResult(null);
                           setSettingsForm({
                             ...settingsForm,
                             telegramHandle: e.target.value,
-                          })
-                        }
+                          });
+                        }}
                         placeholder="e.g., @COLOMBOTOURS or +94 77 123 4567"
                         data-testid="admin-telegram-input"
                         className={`w-full rounded-xl border bg-[var(--bg-input)] px-3.5 py-2.5 text-sm text-[var(--text-primary)] focus:border-[var(--border-gold-strong)] focus:outline-none ${
@@ -1576,12 +1607,13 @@ export function AdminDashboardPage() {
                         id="settings-telegram-link"
                         type="url"
                         value={settingsForm.telegramLink}
-                        onChange={(e) =>
+                        onChange={(e) => {
+                          setTelegramVerifyResult(null);
                           setSettingsForm({
                             ...settingsForm,
                             telegramLink: e.target.value,
-                          })
-                        }
+                          });
+                        }}
                         placeholder="e.g., https://t.me/COLOMBOTOURS"
                         data-testid="admin-telegram-link-input"
                         className={`w-full rounded-xl border bg-[var(--bg-input)] px-3.5 py-2.5 text-sm text-[var(--text-primary)] focus:border-[var(--border-gold-strong)] focus:outline-none ${
@@ -1592,7 +1624,56 @@ export function AdminDashboardPage() {
                       />
                     </div>
 
-                    {/* Live status preview */}
+                    {/* Live status preview & Reachability check */}
+                    <div className="flex flex-wrap items-center justify-between gap-2 pt-0.5">
+                      <p className="text-[11px] text-[var(--text-muted)]">
+                        Mobile apps require an active public{' '}
+                        <span className="font-medium text-[var(--text-secondary)]">
+                          @username
+                        </span>{' '}
+                        (or phone with Privacy → Phone Number → Everybody).
+                      </p>
+                      <button
+                        type="button"
+                        onClick={handleVerifyTelegram}
+                        disabled={!canVerifyTelegram || verifyingTelegram}
+                        data-testid="admin-verify-telegram-btn"
+                        className="inline-flex shrink-0 items-center gap-1.5 rounded-full border border-[var(--border-gold)] bg-[var(--bg-pill)] px-3 py-1.5 text-xs font-medium text-[var(--text-primary)] hover:border-[var(--border-gold-strong)] hover:bg-[var(--gold-soft-bg)] disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+                      >
+                        <CheckCircle2 className="h-3.5 w-3.5 text-[#2AABEE]" />
+                        <span>
+                          {verifyingTelegram
+                            ? 'Checking Telegram...'
+                            : 'Check Telegram Handle'}
+                        </span>
+                      </button>
+                    </div>
+
+                    {telegramVerifyResult ? (
+                      <div
+                        role="status"
+                        data-testid="admin-telegram-verify-result"
+                        className={`rounded-xl border p-3 text-xs space-y-1 ${
+                          telegramVerifyResult.reachable === true
+                            ? 'border-emerald-500/35 bg-emerald-500/10 text-emerald-600 dark:text-emerald-300'
+                            : telegramVerifyResult.reachable === false
+                              ? 'border-red-500/35 bg-red-500/10 text-red-600 dark:text-red-300'
+                              : 'border-amber-500/35 bg-amber-500/10 text-amber-700 dark:text-amber-300'
+                        }`}
+                      >
+                        <p className="font-semibold">
+                          {telegramVerifyResult.reachable === true
+                            ? `Verified: ${telegramVerifyResult.target}`
+                            : telegramVerifyResult.reachable === false
+                              ? `Not Found on Telegram: ${telegramVerifyResult.target || ''}`
+                              : 'Telegram Check Notice'}
+                        </p>
+                        <p className="leading-relaxed opacity-90">
+                          {telegramVerifyResult.message}
+                        </p>
+                      </div>
+                    ) : null}
+
                     {!settingsForm.telegramEnabled ? (
                       <p className="text-xs text-amber-600 dark:text-amber-300">
                         Disabled: Tick &ldquo;Enable Telegram on site&rdquo; to

@@ -1,6 +1,6 @@
 import { MongoMemoryServer } from 'mongodb-memory-server';
 import request from 'supertest';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { createApp } from '../src/app.js';
 import { connectDB, disconnectDB } from '../src/config/db.js';
 import { Media } from '../src/models/Media.js';
@@ -84,10 +84,158 @@ describe('Colombo Tours API', () => {
       .put('/api/admin/settings')
       .send({ whatsappNumber: '+94771234567' });
     const r3 = await request(app).post('/api/admin/vehicles').send({ name: 'Test' });
+    const r4 = await request(app)
+      .post('/api/admin/settings/verify-telegram')
+      .send({ handle: '@ColomboTours' });
 
     expect(r1.status).toBe(401);
     expect(r2.status).toBe(401);
     expect(r3.status).toBe(401);
+    expect(r4.status).toBe(401);
+  });
+
+  it('serves fast 302 redirects on /v/:slug for browsers and escaped JPEG OG cards for WhatsApp/Telegram crawlers', async () => {
+    const listRes = await request(app).get('/api/vehicles');
+    expect(listRes.status).toBe(200);
+    const sampleSlug = listRes.body.vehicles[0].slug;
+
+    // Normal browser visitor gets an instant 302 redirect to /?vehicle=<slug>
+    const humanRes = await request(app)
+      .get(`/v/${sampleSlug}`)
+      .set(
+        'User-Agent',
+        'Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15'
+      );
+    expect(humanRes.status).toBe(302);
+    expect(humanRes.headers.location).toBe(`/?vehicle=${sampleSlug}`);
+    expect(humanRes.headers['cache-control']).toBe('no-store');
+
+    // Malformed / XSS slug safely redirects to /
+    const badSlugRes = await request(app)
+      .get('/v/%3Cscript%3Ealert(1)%3C%2Fscript%3E')
+      .set('User-Agent', 'WhatsApp/2.24.1');
+    expect(badSlugRes.status).toBe(302);
+    expect(badSlugRes.headers.location).toBe('/');
+
+    // WhatsApp & Telegram crawlers receive escaped OG HTML with no inline script tags
+    const waCrawlerRes = await request(app)
+      .get(`/v/${sampleSlug}`)
+      .set('User-Agent', 'WhatsApp/2.24.1.78 A');
+    expect(waCrawlerRes.status).toBe(200);
+    expect(waCrawlerRes.headers['content-type']).toContain('text/html');
+    expect(waCrawlerRes.text).toContain('property="og:title"');
+    expect(waCrawlerRes.text).toContain('property="og:description"');
+    expect(waCrawlerRes.text).toContain(`/v/${sampleSlug}`);
+    expect(waCrawlerRes.text).not.toContain('<script');
+
+    // Non-existent slug redirects crawler safely to /
+    const missingRes = await request(app)
+      .get('/v/non-existent-vehicle-999')
+      .set('User-Agent', 'TelegramBot (like TwitterBot)');
+    expect(missingRes.status).toBe(302);
+    expect(missingRes.headers.location).toBe('/');
+  });
+
+  it('verifies Telegram handles safely in Admin and converts Cloudinary WebP to JPEG for OG previews', async () => {
+    const agent = request.agent(app);
+    const loginRes = await agent.post('/api/auth/login').send({
+      email: 'admin@colombotours.lk',
+      password: 'ChangeMe123!',
+    });
+    expect(loginRes.status).toBe(200);
+
+    // Invalid handle & SSRF-attempt link are rejected with 400
+    const badHandle = await agent
+      .post('/api/admin/settings/verify-telegram')
+      .send({ mode: 'handle', handle: 'ab!' });
+    expect(badHandle.status).toBe(400);
+
+    const ssrfAttempt = await agent
+      .post('/api/admin/settings/verify-telegram')
+      .send({ mode: 'link', link: 'https://169.254.169.254/latest/meta-data/' });
+    expect(ssrfAttempt.status).toBe(400);
+
+    // Phone number returns privacy-dependent notice without outbound fetch
+    const phoneCheck = await agent
+      .post('/api/admin/settings/verify-telegram')
+      .send({ mode: 'handle', handle: '+94 72 573 7391' });
+    expect(phoneCheck.status).toBe(200);
+    expect(phoneCheck.body.status).toBe('phone_privacy_dependent');
+    expect(phoneCheck.body.reachable).toBeNull();
+
+    // Private invite link returns invite_link notice
+    const inviteCheck = await agent
+      .post('/api/admin/settings/verify-telegram')
+      .send({ mode: 'link', link: 'https://t.me/+AbCdEfGh12345' });
+    expect(inviteCheck.status).toBe(200);
+    expect(inviteCheck.body.status).toBe('invite_link');
+
+    // Mocked Telegram HTML check: active username vs non-existent username
+    const fetchSpy = vi
+      .spyOn(globalThis, 'fetch')
+      .mockResolvedValueOnce({
+        ok: true,
+        text: async () =>
+          '<div class="tgme_page_title"><span>Colombo Tours Official</span></div>',
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        text: async () => '<div class="tgme_page_icon"><i class="tgme_icon_user"></i></div>',
+      });
+
+    try {
+      const activeRes = await agent
+        .post('/api/admin/settings/verify-telegram')
+        .send({ mode: 'handle', handle: '@ColomboToursOfficial' });
+      expect(activeRes.status).toBe(200);
+      expect(activeRes.body.reachable).toBe(true);
+      expect(activeRes.body.status).toBe('active');
+      expect(activeRes.body.displayName).toBe('Colombo Tours Official');
+      expect(fetchSpy).toHaveBeenCalledWith(
+        'https://t.me/ColomboToursOfficial',
+        expect.objectContaining({ redirect: 'manual' })
+      );
+
+      const missingUserRes = await agent
+        .post('/api/admin/settings/verify-telegram')
+        .send({ mode: 'handle', handle: '@COLOMBOTOURS' });
+      expect(missingUserRes.status).toBe(200);
+      expect(missingUserRes.body.reachable).toBe(false);
+      expect(missingUserRes.body.status).toBe('not_found');
+    } finally {
+      fetchSpy.mockRestore();
+    }
+
+    // Create vehicle with HTML-sensitive chars + Cloudinary WebP photo to test XSS escaping & JPG OG transform
+    const vRes = await agent.post('/api/admin/vehicles').send({
+      name: '2026 Luxury <"Test"> Sedan',
+      model: 'Test & Co',
+      photos: [
+        {
+          url: 'https://res.cloudinary.com/demo/image/upload/v123/colombo-tours/test-car.webp',
+          alt: 'Test car',
+          storageProvider: 'cloudinary',
+          isPrimary: true,
+        },
+      ],
+      isPublished: true,
+    });
+    expect(vRes.status).toBe(201);
+    const vSlug = vRes.body.vehicle.slug;
+
+    try {
+      const ogRes = await request(app)
+        .get(`/v/${vSlug}`)
+        .set('User-Agent', 'WhatsApp/2.24.1');
+      expect(ogRes.status).toBe(200);
+      expect(ogRes.text).toContain('&lt;&quot;Test&quot;&gt;');
+      expect(ogRes.text).not.toContain('<"Test">');
+      expect(ogRes.text).toContain(
+        'https://res.cloudinary.com/demo/image/upload/f_jpg,q_auto:good,w_1200,h_630,c_fill,g_auto/v123/colombo-tours/test-car.jpg'
+      );
+    } finally {
+      await agent.delete(`/api/admin/vehicles/${vRes.body.vehicle._id}`);
+    }
   });
 
   it('handles staff authentication, WhatsApp number updates, uploads, and vehicle lifecycle', async () => {

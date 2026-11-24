@@ -19,6 +19,7 @@ import {
   normalizeTelegramHandle,
   normalizeWeChatId,
   normalizeWhatsAppNumber,
+  parseSafeVehicleLinkLine,
   resolveTelegramUrl,
   resolveWeChatAction,
   resolveWhatsAppUrl,
@@ -94,6 +95,7 @@ describe('WhatsApp helpers', () => {
     expect(isValidTelegramHandle('bad handle!')).toBe(false);
 
     expect(buildTelegramUrl('', 'Hello')).toBeNull();
+    expect(buildTelegramUrl('@ColomboTours', '')).toBe('https://t.me/ColomboTours');
     expect(buildTelegramUrl('@ColomboTours', 'Hello Colombo')).toBe(
       'https://t.me/ColomboTours?text=Hello%20Colombo'
     );
@@ -164,6 +166,22 @@ describe('WhatsApp helpers', () => {
         message: 'Hi Colombo',
       })
     ).toBe('https://t.me/COLOMBOTOURS?text=Hi%20Colombo');
+    expect(
+      resolveTelegramUrl({
+        telegramMode: 'link',
+        telegramLink: 'https://t.me/+94725737391',
+        telegramEnabled: true,
+        message: 'Hi Colombo',
+      })
+    ).toBe('https://t.me/+94725737391?text=Hi%20Colombo');
+    expect(
+      resolveTelegramUrl({
+        telegramMode: 'link',
+        telegramLink: 'https://t.me/+AbCdEfGh1234',
+        telegramEnabled: true,
+        message: 'Hi Colombo',
+      })
+    ).toBe('https://t.me/+AbCdEfGh1234');
 
     const wcDirect = resolveWeChatAction({
       wechatMode: 'link',
@@ -194,7 +212,7 @@ describe('WhatsApp helpers', () => {
         '2024-bmw-i7-xdrive60',
         'https://colombo-tours.vercel.app'
       )
-    ).toBe('https://colombo-tours.vercel.app/?vehicle=2024-bmw-i7-xdrive60');
+    ).toBe('https://colombo-tours.vercel.app/v/2024-bmw-i7-xdrive60');
     expect(
       buildVehicleShareUrl('2024-bmw-i7-xdrive60', 'javascript:alert(1)')
     ).toBe('');
@@ -224,7 +242,22 @@ describe('WhatsApp helpers', () => {
       'Details: BMW i7 Luxury Flagship Sedan · 4 Seats · Automatic · 3 Suitcases · Electric · Chauffeur Included'
     );
     expect(msg).toContain(
-      'Vehicle link: https://colombo-tours.vercel.app/?vehicle=2024-bmw-i7-xdrive60'
+      'Link: https://colombo-tours.vercel.app/v/2024-bmw-i7-xdrive60'
     );
+
+    // Safe link line parser accepts only valid vehicle share URLs
+    expect(
+      parseSafeVehicleLinkLine(
+        'Link: https://colombo-tours.vercel.app/v/2024-bmw-i7-xdrive60'
+      )
+    ).toEqual({
+      label: 'Link',
+      href: 'https://colombo-tours.vercel.app/v/2024-bmw-i7-xdrive60',
+      slug: '2024-bmw-i7-xdrive60',
+    });
+    expect(parseSafeVehicleLinkLine('Link: javascript:alert(1)')).toBeNull();
+    expect(
+      parseSafeVehicleLinkLine('Link: https://evil.example/admin')
+    ).toBeNull();
   });
 });

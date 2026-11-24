@@ -1,6 +1,6 @@
 import { act, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { MemoryRouter } from 'react-router-dom';
+import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { HeroBanner } from '../components/HeroBanner';
 import {
@@ -156,7 +156,10 @@ function renderStorefront(payload, { initialEntries = ['/'] } = {}) {
       <LanguageProvider>
         <SiteProvider>
           <MemoryRouter initialEntries={initialEntries}>
-            <HomePage />
+            <Routes>
+              <Route path="/" element={<HomePage />} />
+              <Route path="/v/:slug" element={<HomePage />} />
+            </Routes>
           </MemoryRouter>
         </SiteProvider>
       </LanguageProvider>
@@ -249,9 +252,9 @@ describe('Colombo Tours Storefront UI', () => {
     expect(decodedMercWa).toContain('2024 Mercedes-Benz S-Class');
     expect(decodedMercWa).toContain('S 500 AMG');
     expect(decodedMercWa).toContain('5 Seats');
-    expect(decodedMercWa).toContain('?vehicle=2024-mercedes-benz-s-class');
+    expect(decodedMercWa).toContain('/v/2024-mercedes-benz-s-class');
 
-    // Telegram direct vehicle enquiry link also includes details and vehicle link
+    // Telegram direct vehicle enquiry link also includes details and short /v/ vehicle link
     const mercTgBtn = screen.getByTestId(
       'vehicle-telegram-2024-mercedes-benz-s-class'
     );
@@ -261,9 +264,9 @@ describe('Colombo Tours Storefront UI', () => {
     );
     const decodedMercTg = decodeURIComponent(mercTgBtn.getAttribute('href'));
     expect(decodedMercTg).toContain('2024 Mercedes-Benz S-Class');
-    expect(decodedMercTg).toContain('?vehicle=2024-mercedes-benz-s-class');
+    expect(decodedMercTg).toContain('/v/2024-mercedes-benz-s-class');
 
-    // WeChat button opens concierge modal with WeChat ID, QR code, vehicle details & link
+    // WeChat button opens concierge modal with WeChat ID, QR code, vehicle details & clean clickable "Link"
     await user.click(
       screen.getByTestId('vehicle-wechat-2024-mercedes-benz-s-class')
     );
@@ -276,9 +279,15 @@ describe('Colombo Tours Storefront UI', () => {
     expect(within(wcModal).getByTestId('wechat-modal-message')).toHaveTextContent(
       '2024 Mercedes-Benz S-Class'
     );
-    expect(within(wcModal).getByTestId('wechat-modal-message')).toHaveTextContent(
-      '?vehicle=2024-mercedes-benz-s-class'
+    const wcVehicleLink = within(wcModal).getByTestId('wechat-modal-vehicle-link');
+    expect(wcVehicleLink).toHaveTextContent('Link');
+    expect(wcVehicleLink.getAttribute('href')).toContain(
+      '/v/2024-mercedes-benz-s-class'
     );
+    // Raw URL is not visibly dumped as text inside the modal preview
+    expect(
+      within(wcModal).getByTestId('wechat-modal-message').textContent
+    ).not.toContain('/v/2024-mercedes-benz-s-class');
     await user.click(screen.getByTestId('close-wechat-modal'));
     expect(screen.queryByTestId('wechat-enquiry-modal')).not.toBeInTheDocument();
 
@@ -313,7 +322,7 @@ describe('Colombo Tours Storefront UI', () => {
     const decodedQe = decodeURIComponent(qeBtn.getAttribute('href'));
     expect(decodedQe).toContain('Land Rover Defender 110');
     expect(decodedQe).toContain('Defender HSE');
-    expect(decodedQe).toContain('?vehicle=land-rover-defender-110');
+    expect(decodedQe).toContain('/v/land-rover-defender-110');
     expect(decodedQe).toContain('Pickup location: Colombo City');
     expect(decodedQe).toContain('Pickup date: 2099-05-10');
     expect(decodedQe).toContain('Return date: 2099-05-14');
@@ -495,28 +504,28 @@ describe('Colombo Tours Storefront UI', () => {
     expect(isValidLanguageCode('<script>')).toBe(false);
   });
 
-  it('supports Direct Link mode, carries vehicle details into WeChat link modal, and opens /?vehicle=<slug> deep links safely', async () => {
+  it('supports Direct Link mode, carries vehicle details into WeChat link modal, and opens /v/<slug> deep links safely', async () => {
     const user = userEvent.setup();
     renderStorefront(
       createBootstrapPayload({
         whatsappLink: 'https://wa.me/message/KSBZDVJTSEJYC1?src=qr',
         whatsappMode: 'link',
         whatsappEnabled: true,
-        telegramLink: 'https://t.me/COLOMBOTOURS',
+        telegramLink: 'https://t.me/+94725737391',
         telegramMode: 'link',
         telegramEnabled: true,
         wechatLink: 'https://u.wechat.com/kHm8VCFbetF_uPu8roHEfig?s=2',
         wechatMode: 'link',
         wechatEnabled: true,
       }),
-      { initialEntries: ['/?vehicle=land-rover-defender-110'] }
+      { initialEntries: ['/v/land-rover-defender-110'] }
     );
 
     await waitFor(() =>
       expect(screen.getByTestId('fleet-grid')).toBeInTheDocument()
     );
 
-    // Deep link /?vehicle=land-rover-defender-110 automatically opens Defender specs modal
+    // Short deep link /v/land-rover-defender-110 automatically opens Defender specs modal
     const specsModal = await screen.findByTestId('vehicle-specs-modal');
     expect(within(specsModal).getByText('Land Rover Defender 110')).toBeInTheDocument();
     await user.click(screen.getByTestId('close-specs-modal'));
@@ -535,17 +544,19 @@ describe('Colombo Tours Storefront UI', () => {
     );
     expect(tgCard.tagName).toBe('A');
     const decodedTg = decodeURIComponent(tgCard.getAttribute('href'));
-    expect(decodedTg).toContain('https://t.me/COLOMBOTOURS?text=');
-    expect(decodedTg).toContain('?vehicle=2024-mercedes-benz-s-class');
+    expect(decodedTg).toContain('https://t.me/+94725737391?text=');
+    expect(decodedTg).toContain('/v/2024-mercedes-benz-s-class');
 
-    // Vehicle card WeChat button opens modal carrying details + link + direct u.wechat.com link CTA
+    // Vehicle card WeChat button opens modal carrying details + clickable "Link" + direct u.wechat.com link CTA
     const wcCard = screen.getByTestId(
       'vehicle-wechat-2024-mercedes-benz-s-class'
     );
     await user.click(wcCard);
     const wcModal = screen.getByTestId('wechat-enquiry-modal');
-    expect(within(wcModal).getByTestId('wechat-modal-message')).toHaveTextContent(
-      '?vehicle=2024-mercedes-benz-s-class'
+    const wcLinkEl = within(wcModal).getByTestId('wechat-modal-vehicle-link');
+    expect(wcLinkEl).toHaveTextContent('Link');
+    expect(wcLinkEl.getAttribute('href')).toContain(
+      '/v/2024-mercedes-benz-s-class'
     );
     const wcDirectBtn = within(wcModal).getByTestId('wechat-direct-link-btn');
     expect(wcDirectBtn.getAttribute('href')).toBe(

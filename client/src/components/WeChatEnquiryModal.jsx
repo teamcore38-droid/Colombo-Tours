@@ -2,6 +2,7 @@ import { Check, Copy, ExternalLink, X } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { useSite } from '../context/SiteContext';
 import { resolveApiUrl } from '../lib/api';
+import { parseSafeVehicleLinkLine } from '../lib/channels';
 import { optimizeCloudinaryDeliveryUrl } from '../lib/imageOptimize';
 import { WeChatIcon } from './ChannelButtons';
 
@@ -216,12 +217,32 @@ export function WeChatEnquiryModal() {
                 )}
               </button>
             </div>
-            <p
+            <div
               data-testid="wechat-modal-message"
-              className="whitespace-pre-line text-xs sm:text-sm leading-relaxed text-[var(--text-primary)] select-all"
+              className="space-y-1 text-xs sm:text-sm leading-relaxed text-[var(--text-primary)] select-text"
             >
-              {message}
-            </p>
+              {message.split('\n').map((line, idx) => {
+                const safeLink = parseSafeVehicleLinkLine(line);
+                if (safeLink) {
+                  return (
+                    <p key={`line-${idx}`}>
+                      <a
+                        href={safeLink.href}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        data-testid="wechat-modal-vehicle-link"
+                        title={safeLink.href}
+                        className="inline-flex items-center gap-1 font-medium text-[var(--gold-accent)] underline underline-offset-2 hover:text-[var(--gold-bright)]"
+                      >
+                        <span>{safeLink.label}</span>
+                        <ExternalLink className="h-3 w-3 shrink-0" />
+                      </a>
+                    </p>
+                  );
+                }
+                return <p key={`line-${idx}`}>{line}</p>;
+              })}
+            </div>
           </div>
 
           {copiedField === 'open' ? (

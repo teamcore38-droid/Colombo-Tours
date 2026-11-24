@@ -18,6 +18,7 @@ export {
   normalizeTelegramHandle,
   normalizeWeChatId,
   normalizeWhatsAppNumber,
+  parseSafeVehicleLinkLine,
   resolveTelegramUrl,
   resolveWeChatAction,
   resolveWhatsAppUrl,

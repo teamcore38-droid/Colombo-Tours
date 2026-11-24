@@ -9,6 +9,7 @@ import adminRoutes from './routes/admin.js';
 import authRoutes from './routes/auth.js';
 import mediaRoutes from './routes/media.js';
 import publicRoutes from './routes/public.js';
+import { createShareRouter } from './routes/share.js';
 import { ensureBootstrapped } from './utils/seed.js';
 
 export function createApp({ skipDbMiddleware = false } = {}) {
@@ -58,6 +59,8 @@ export function createApp({ skipDbMiddleware = false } = {}) {
       }
     });
   }
+
+  app.use('/v', createShareRouter({ skipDbMiddleware }));
 
   app.use('/api/auth', authRoutes);
   app.use('/api/media', mediaRoutes);
