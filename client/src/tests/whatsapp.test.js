@@ -8,12 +8,18 @@ import {
   formatTelegramDisplay,
   isSafeQrUrl,
   isValidTelegramHandle,
+  isValidTelegramLink,
   isValidWeChatId,
+  isValidWeChatLink,
+  isValidWhatsAppLink,
   isValidWhatsAppNumber,
   isWeChatConfigured,
   normalizeTelegramHandle,
   normalizeWeChatId,
   normalizeWhatsAppNumber,
+  resolveTelegramUrl,
+  resolveWeChatAction,
+  resolveWhatsAppUrl,
   validateRentalDates,
 } from '../lib/channels';
 
@@ -112,5 +118,64 @@ describe('WhatsApp helpers', () => {
     expect(isWeChatConfigured('', 'https://res.cloudinary.com/demo/qr.webp')).toBe(
       true
     );
+  });
+
+  it('validates direct social links strictly by domain and resolves active mode & enable flags', () => {
+    const waLink = 'https://wa.me/message/KSBZDVJTSEJYC1?src=qr';
+    const tgLink = 'https://t.me/COLOMBOTOURS';
+    const wcLink = 'https://u.wechat.com/kHm8VCFbetF_uPu8roHEfig?s=2';
+
+    expect(isValidWhatsAppLink(waLink)).toBe(true);
+    expect(isValidWhatsAppLink('https://evil.example/message/123')).toBe(false);
+    expect(isValidWhatsAppLink('http://wa.me/message/123')).toBe(false);
+
+    expect(isValidTelegramLink(tgLink)).toBe(true);
+    expect(isValidTelegramLink('https://evil.example/COLOMBOTOURS')).toBe(false);
+
+    expect(isValidWeChatLink(wcLink)).toBe(true);
+    expect(isValidWeChatLink('javascript:alert(1)')).toBe(false);
+    expect(isValidWeChatLink('https://evil.example/wechat')).toBe(false);
+
+    // Direct link mode resolves cleanly and respects enabled flag
+    expect(
+      resolveWhatsAppUrl({
+        whatsappMode: 'link',
+        whatsappLink: waLink,
+        whatsappEnabled: true,
+        message: 'Hi',
+      })
+    ).toBe(waLink);
+    expect(
+      resolveWhatsAppUrl({
+        whatsappMode: 'link',
+        whatsappLink: waLink,
+        whatsappEnabled: false,
+      })
+    ).toBeNull();
+
+    expect(
+      resolveTelegramUrl({
+        telegramMode: 'link',
+        telegramLink: tgLink,
+        telegramEnabled: true,
+        message: 'Hi Colombo',
+      })
+    ).toBe('https://t.me/COLOMBOTOURS?text=Hi%20Colombo');
+
+    const wcDirect = resolveWeChatAction({
+      wechatMode: 'link',
+      wechatLink: wcLink,
+      wechatEnabled: true,
+    });
+    expect(wcDirect.active).toBe(true);
+    expect(wcDirect.mode).toBe('link');
+    expect(wcDirect.url).toBe(wcLink);
+
+    const wcDisabled = resolveWeChatAction({
+      wechatMode: 'link',
+      wechatLink: wcLink,
+      wechatEnabled: false,
+    });
+    expect(wcDisabled.active).toBe(false);
   });
 });

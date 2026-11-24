@@ -48,6 +48,7 @@ export function WeChatEnquiryModal() {
   if (!wechatEnquiry) return null;
 
   const wechatId = wechatEnquiry.wechatId || settings.wechatId || '';
+  const wechatLink = wechatEnquiry.wechatLink || settings.wechatLink || '';
   const rawQrUrl = wechatEnquiry.wechatQrUrl || settings.wechatQrUrl || '';
   const qrSrc = rawQrUrl
     ? optimizeCloudinaryDeliveryUrl(resolveApiUrl(rawQrUrl), 640)
@@ -236,15 +237,29 @@ export function WeChatEnquiryModal() {
 
         {/* Footer CTA */}
         <div className="border-t border-[var(--border-subtle)] bg-[var(--bg-surface)] px-5 py-4 space-y-2">
-          <button
-            type="button"
-            onClick={handleCopyAndOpenWeChat}
-            data-testid="wechat-copy-open-btn"
-            className="btn-gold inline-flex w-full items-center justify-center gap-2 rounded-full px-5 py-2.5 text-sm cursor-pointer"
-          >
-            <ExternalLink className="h-4 w-4 shrink-0" />
-            <span>Copy Enquiry &amp; Open WeChat</span>
-          </button>
+          {wechatLink ? (
+            <a
+              href={wechatLink}
+              target="_blank"
+              rel="noopener noreferrer"
+              onClick={() => copyTextSafe(message)}
+              data-testid="wechat-direct-link-btn"
+              className="btn-gold inline-flex w-full items-center justify-center gap-2 rounded-full px-5 py-2.5 text-sm cursor-pointer"
+            >
+              <ExternalLink className="h-4 w-4 shrink-0" />
+              <span>Copy Message &amp; Open WeChat Link</span>
+            </a>
+          ) : (
+            <button
+              type="button"
+              onClick={handleCopyAndOpenWeChat}
+              data-testid="wechat-copy-open-btn"
+              className="btn-gold inline-flex w-full items-center justify-center gap-2 rounded-full px-5 py-2.5 text-sm cursor-pointer"
+            >
+              <ExternalLink className="h-4 w-4 shrink-0" />
+              <span>Copy Enquiry &amp; Open WeChat</span>
+            </button>
+          )}
           <p className="text-center text-[11px] text-[var(--text-muted)]">
             Availability &amp; tailored rates are confirmed directly with our team
           </p>

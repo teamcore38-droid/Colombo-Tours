@@ -3,9 +3,9 @@ import { useMemo, useState } from 'react';
 import { useOptionalSite } from '../context/SiteContext';
 import {
   buildQuickEnquiryMessage,
-  isValidTelegramHandle,
-  isValidWhatsAppNumber,
-  isWeChatConfigured,
+  resolveTelegramUrl,
+  resolveWeChatAction,
+  resolveWhatsAppUrl,
   validateRentalDates,
 } from '../lib/channels';
 import { BookingChannelGroup } from './ChannelButtons';
@@ -108,10 +108,29 @@ export function QuickEnquiryPanel({
   const effectiveWcQr =
     wechatQrUrl !== undefined ? wechatQrUrl : site?.settings?.wechatQrUrl || '';
 
-  const hasAnyChannel =
-    isValidWhatsAppNumber(effectiveWa) ||
-    isValidTelegramHandle(effectiveTg) ||
-    isWeChatConfigured(effectiveWcId, effectiveWcQr);
+  const hasAnyChannel = Boolean(
+    resolveWhatsAppUrl({
+      whatsappNumber: effectiveWa,
+      whatsappLink: site?.settings?.whatsappLink || '',
+      whatsappMode: site?.settings?.whatsappMode || 'number',
+      whatsappEnabled: site?.settings?.whatsappEnabled !== false,
+      message,
+    }) ||
+      resolveTelegramUrl({
+        telegramHandle: effectiveTg,
+        telegramLink: site?.settings?.telegramLink || '',
+        telegramMode: site?.settings?.telegramMode || 'handle',
+        telegramEnabled: site?.settings?.telegramEnabled !== false,
+        message,
+      }) ||
+      resolveWeChatAction({
+        wechatId: effectiveWcId,
+        wechatLink: site?.settings?.wechatLink || '',
+        wechatQrUrl: effectiveWcQr,
+        wechatMode: site?.settings?.wechatMode || 'id',
+        wechatEnabled: site?.settings?.wechatEnabled !== false,
+      }).active
+  );
 
   const handleTargetChange = (value) => {
     if (selectedVehicleName && onClearSelectedVehicle) {

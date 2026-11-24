@@ -1,4 +1,5 @@
-import { buildWhatsAppUrl } from '../lib/whatsapp';
+import { useOptionalSite } from '../context/SiteContext';
+import { resolveWhatsAppUrl } from '../lib/channels';
 
 export function WhatsAppIcon({ className = 'w-4 h-4' }) {
   return (
@@ -23,6 +24,9 @@ export function WhatsAppIcon({ className = 'w-4 h-4' }) {
  */
 export function WhatsAppButton({
   whatsappNumber,
+  whatsappLink,
+  whatsappMode,
+  whatsappEnabled,
   message,
   children,
   variant = 'gold',
@@ -34,7 +38,21 @@ export function WhatsAppButton({
   showIcon = true,
   dataTestId,
 }) {
-  const url = buildWhatsAppUrl(whatsappNumber, message);
+  const site = useOptionalSite();
+  const s = site?.settings;
+  const url = resolveWhatsAppUrl({
+    whatsappNumber:
+      whatsappNumber !== undefined ? whatsappNumber : s?.whatsappNumber || '',
+    whatsappLink:
+      whatsappLink !== undefined ? whatsappLink : s?.whatsappLink || '',
+    whatsappMode:
+      whatsappMode !== undefined ? whatsappMode : s?.whatsappMode || 'number',
+    whatsappEnabled:
+      whatsappEnabled !== undefined
+        ? whatsappEnabled
+        : s?.whatsappEnabled !== false,
+    message,
+  });
   const isDisabled = disabled || !url;
 
   const sizeStyles = {

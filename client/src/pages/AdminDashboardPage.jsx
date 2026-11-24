@@ -37,11 +37,17 @@ import {
   buildWhatsAppUrl,
   formatTelegramDisplay,
   isValidTelegramHandle,
+  isValidTelegramLink,
   isValidWeChatId,
+  isValidWeChatLink,
+  isValidWhatsAppLink,
   isValidWhatsAppNumber,
   normalizeTelegramHandle,
   normalizeWeChatId,
   normalizeWhatsAppNumber,
+  sanitizeTelegramLink,
+  sanitizeWeChatLink,
+  sanitizeWhatsAppLink,
 } from '../lib/channels';
 import { optimizeImageForUpload } from '../lib/imageOptimize';
 
@@ -61,8 +67,17 @@ export function AdminDashboardPage() {
     companyName: 'Colombo Tours',
     tagline: 'Built Trust in Excellence',
     whatsappNumber: '',
+    whatsappLink: '',
+    whatsappMode: 'number',
+    whatsappEnabled: true,
     telegramHandle: '',
+    telegramLink: '',
+    telegramMode: 'handle',
+    telegramEnabled: true,
     wechatId: '',
+    wechatLink: '',
+    wechatMode: 'id',
+    wechatEnabled: true,
     wechatQrUrl: '',
     wechatQrStorageProvider: '',
     wechatQrMediaId: '',
@@ -123,8 +138,17 @@ export function AdminDashboardPage() {
           whatsappNumber: setRes.settings.whatsappNumber
             ? `+${setRes.settings.whatsappNumber}`
             : '',
+          whatsappLink: setRes.settings.whatsappLink || '',
+          whatsappMode: setRes.settings.whatsappMode || 'number',
+          whatsappEnabled: setRes.settings.whatsappEnabled !== false,
           telegramHandle: setRes.settings.telegramDisplay || '',
+          telegramLink: setRes.settings.telegramLink || '',
+          telegramMode: setRes.settings.telegramMode || 'handle',
+          telegramEnabled: setRes.settings.telegramEnabled !== false,
           wechatId: setRes.settings.wechatId || '',
+          wechatLink: setRes.settings.wechatLink || '',
+          wechatMode: setRes.settings.wechatMode || 'id',
+          wechatEnabled: setRes.settings.wechatEnabled !== false,
           wechatQrUrl: setRes.settings.wechatQrUrl || '',
           wechatQrStorageProvider:
             setRes.settings.wechatQrStorageProvider || '',
@@ -412,8 +436,11 @@ export function AdminDashboardPage() {
     const payload = {
       ...settingsForm,
       whatsappNumber: settingsForm.whatsappNumber.trim(),
+      whatsappLink: settingsForm.whatsappLink.trim(),
       telegramHandle: settingsForm.telegramHandle.trim(),
+      telegramLink: settingsForm.telegramLink.trim(),
       wechatId: settingsForm.wechatId.trim(),
+      wechatLink: settingsForm.wechatLink.trim(),
       wechatQrUrl: settingsForm.wechatQrUrl.trim(),
       ...(overrides || {}),
     };
@@ -428,8 +455,17 @@ export function AdminDashboardPage() {
         companyName: saved.companyName,
         tagline: saved.tagline,
         whatsappNumber: saved.whatsappNumber ? `+${saved.whatsappNumber}` : '',
+        whatsappLink: saved.whatsappLink || '',
+        whatsappMode: saved.whatsappMode || 'number',
+        whatsappEnabled: saved.whatsappEnabled !== false,
         telegramHandle: saved.telegramDisplay || '',
+        telegramLink: saved.telegramLink || '',
+        telegramMode: saved.telegramMode || 'handle',
+        telegramEnabled: saved.telegramEnabled !== false,
         wechatId: saved.wechatId || '',
+        wechatLink: saved.wechatLink || '',
+        wechatMode: saved.wechatMode || 'id',
+        wechatEnabled: saved.wechatEnabled !== false,
         wechatQrUrl: saved.wechatQrUrl || '',
         wechatQrStorageProvider: saved.wechatQrStorageProvider || '',
         wechatQrMediaId: saved.wechatQrMediaId || '',
@@ -445,17 +481,21 @@ export function AdminDashboardPage() {
       await notifyDataUpdated();
 
       const activeLabels = [
-        saved.whatsappConfigured ? `WhatsApp (+${saved.whatsappNumber})` : null,
-        saved.telegramConfigured ? `Telegram (${saved.telegramDisplay})` : null,
+        saved.whatsappConfigured
+          ? `WhatsApp (${saved.whatsappMode === 'link' ? 'Link' : `+${saved.whatsappNumber}`})`
+          : null,
+        saved.telegramConfigured
+          ? `Telegram (${saved.telegramMode === 'link' ? 'Link' : saved.telegramDisplay})`
+          : null,
         saved.wechatConfigured
-          ? `WeChat (${saved.wechatId || 'QR Code'})`
+          ? `WeChat (${saved.wechatMode === 'link' ? 'Link' : saved.wechatId || 'QR Code'})`
           : null,
       ].filter(Boolean);
 
       showToast(
         activeLabels.length > 0
           ? `Settings saved! Active booking channels: ${activeLabels.join(' · ')}.`
-          : 'Settings saved. All booking buttons are disabled until at least one channel is configured.'
+          : 'Settings saved. All booking buttons are disabled until at least one channel is enabled and configured.'
       );
     } catch (err) {
       setError(err.message || 'Could not update settings.');
@@ -466,24 +506,34 @@ export function AdminDashboardPage() {
 
   const previewDigits = normalizeWhatsAppNumber(settingsForm.whatsappNumber);
   const previewValid = isValidWhatsAppNumber(previewDigits);
-  const sampleWaUrl = previewValid
-    ? buildWhatsAppUrl(
-        previewDigits,
-        buildVehicleEnquiryMessage('2024 Mercedes-Benz S-Class')
-      )
-    : null;
+  const previewWaLinkValid = isValidWhatsAppLink(settingsForm.whatsappLink);
+  const sampleWaUrl =
+    settingsForm.whatsappMode === 'link'
+      ? sanitizeWhatsAppLink(settingsForm.whatsappLink) || null
+      : previewValid
+        ? buildWhatsAppUrl(
+            previewDigits,
+            buildVehicleEnquiryMessage('2024 Mercedes-Benz S-Class')
+          )
+        : null;
 
   const previewTgHandle = normalizeTelegramHandle(settingsForm.telegramHandle);
   const previewTgValid = isValidTelegramHandle(previewTgHandle);
-  const sampleTgUrl = previewTgValid
-    ? buildTelegramUrl(
-        previewTgHandle,
-        buildVehicleEnquiryMessage('2024 Mercedes-Benz S-Class')
-      )
-    : null;
+  const previewTgLinkValid = isValidTelegramLink(settingsForm.telegramLink);
+  const sampleTgUrl =
+    settingsForm.telegramMode === 'link'
+      ? sanitizeTelegramLink(settingsForm.telegramLink) || null
+      : previewTgValid
+        ? buildTelegramUrl(
+            previewTgHandle,
+            buildVehicleEnquiryMessage('2024 Mercedes-Benz S-Class')
+          )
+        : null;
 
   const previewWeChatId = normalizeWeChatId(settingsForm.wechatId);
   const previewWeChatValid = isValidWeChatId(previewWeChatId);
+  const previewWeChatLinkValid = isValidWeChatLink(settingsForm.wechatLink);
+  const sampleWeChatLink = sanitizeWeChatLink(settingsForm.wechatLink) || null;
   const configuredChannelCount =
     Number(channelStatus.whatsapp) +
     Number(channelStatus.telegram) +
@@ -1164,52 +1214,202 @@ export function AdminDashboardPage() {
 
                 <div className="mt-5 space-y-5">
                   {/* 1. WhatsApp */}
-                  <div className="rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-card-elevated)] p-4 space-y-2.5">
-                    <div className="flex items-center justify-between gap-2">
-                      <label
-                        htmlFor="settings-whatsapp"
-                        className="inline-flex items-center gap-2 text-xs font-semibold text-[var(--text-primary)]"
-                      >
+                  <div className="rounded-xl border border-[var(--border-gold)]/70 bg-[var(--bg-card-elevated)] p-4 space-y-3.5">
+                    <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[var(--border-subtle)] pb-2.5">
+                      <span className="inline-flex items-center gap-2 text-sm font-semibold text-[var(--text-primary)]">
                         <WhatsAppIcon className="h-4 w-4 text-[var(--gold-accent)]" />
-                        <span>
-                          WhatsApp Number (International format with country code)
-                        </span>
-                      </label>
-                      {settingsForm.whatsappNumber ? (
-                        <button
-                          type="button"
-                          onClick={() =>
+                        <span>WhatsApp</span>
+                      </span>
+                      <label className="inline-flex items-center gap-2 text-xs font-medium text-[var(--text-secondary)] cursor-pointer select-none">
+                        <input
+                          type="checkbox"
+                          checked={settingsForm.whatsappEnabled}
+                          onChange={(e) =>
                             setSettingsForm({
                               ...settingsForm,
-                              whatsappNumber: '',
+                              whatsappEnabled: e.target.checked,
                             })
                           }
-                          className="text-[11px] text-red-500 hover:underline cursor-pointer"
-                        >
-                          Clear
-                        </button>
-                      ) : null}
+                          data-testid="admin-whatsapp-enabled"
+                          className="h-4 w-4 rounded accent-[#D4AF37]"
+                        />
+                        <span>Enable WhatsApp on site</span>
+                      </label>
                     </div>
-                    <input
-                      id="settings-whatsapp"
-                      type="text"
-                      value={settingsForm.whatsappNumber}
-                      onChange={(e) =>
-                        setSettingsForm({
-                          ...settingsForm,
-                          whatsappNumber: e.target.value,
-                        })
-                      }
-                      placeholder="e.g., +94 77 123 4567"
-                      data-testid="admin-whatsapp-input"
-                      className="w-full rounded-xl border border-[var(--border-gold)] bg-[var(--bg-input)] px-3.5 py-2.5 text-sm text-[var(--text-primary)] focus:border-[var(--border-gold-strong)] focus:outline-none"
-                    />
 
-                    {settingsForm.whatsappNumber.trim() ? (
+                    {/* Mode selector: Number vs Direct Link */}
+                    <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                      <label
+                        className={`flex items-center gap-2.5 rounded-xl border px-3 py-2 text-xs cursor-pointer transition-colors ${
+                          settingsForm.whatsappMode === 'number'
+                            ? 'border-[var(--border-gold-strong)] bg-[var(--gold-soft-bg)] text-[var(--text-primary)] font-semibold'
+                            : 'border-[var(--border-subtle)] bg-[var(--bg-input)] text-[var(--text-secondary)]'
+                        }`}
+                      >
+                        <input
+                          type="radio"
+                          name="whatsappMode"
+                          value="number"
+                          checked={settingsForm.whatsappMode === 'number'}
+                          onChange={() =>
+                            setSettingsForm({
+                              ...settingsForm,
+                              whatsappMode: 'number',
+                            })
+                          }
+                          data-testid="admin-whatsapp-mode-number"
+                          className="accent-[#D4AF37]"
+                        />
+                        <span>Use Phone Number (pre-fills message)</span>
+                      </label>
+
+                      <label
+                        className={`flex items-center gap-2.5 rounded-xl border px-3 py-2 text-xs cursor-pointer transition-colors ${
+                          settingsForm.whatsappMode === 'link'
+                            ? 'border-[var(--border-gold-strong)] bg-[var(--gold-soft-bg)] text-[var(--text-primary)] font-semibold'
+                            : 'border-[var(--border-subtle)] bg-[var(--bg-input)] text-[var(--text-secondary)]'
+                        }`}
+                      >
+                        <input
+                          type="radio"
+                          name="whatsappMode"
+                          value="link"
+                          checked={settingsForm.whatsappMode === 'link'}
+                          onChange={() =>
+                            setSettingsForm({
+                              ...settingsForm,
+                              whatsappMode: 'link',
+                            })
+                          }
+                          data-testid="admin-whatsapp-mode-link"
+                          className="accent-[#D4AF37]"
+                        />
+                        <span>Use Direct WhatsApp Link</span>
+                      </label>
+                    </div>
+
+                    {/* Option A: Phone Number */}
+                    <div className="space-y-1.5">
+                      <div className="flex items-center justify-between gap-2">
+                        <label
+                          htmlFor="settings-whatsapp"
+                          className="text-xs font-medium text-[var(--text-secondary)]"
+                        >
+                          WhatsApp Phone Number (International format)
+                        </label>
+                        {settingsForm.whatsappNumber ? (
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setSettingsForm({
+                                ...settingsForm,
+                                whatsappNumber: '',
+                              })
+                            }
+                            className="text-[11px] text-red-500 hover:underline cursor-pointer"
+                          >
+                            Clear
+                          </button>
+                        ) : null}
+                      </div>
+                      <input
+                        id="settings-whatsapp"
+                        type="text"
+                        value={settingsForm.whatsappNumber}
+                        onChange={(e) =>
+                          setSettingsForm({
+                            ...settingsForm,
+                            whatsappNumber: e.target.value,
+                          })
+                        }
+                        placeholder="e.g., +94 77 123 4567"
+                        data-testid="admin-whatsapp-input"
+                        className={`w-full rounded-xl border bg-[var(--bg-input)] px-3.5 py-2.5 text-sm text-[var(--text-primary)] focus:border-[var(--border-gold-strong)] focus:outline-none ${
+                          settingsForm.whatsappMode === 'number'
+                            ? 'border-[var(--border-gold)]'
+                            : 'border-[var(--border-subtle)] opacity-80'
+                        }`}
+                      />
+                    </div>
+
+                    {/* Option B: Direct Link */}
+                    <div className="space-y-1.5">
+                      <div className="flex items-center justify-between gap-2">
+                        <label
+                          htmlFor="settings-whatsapp-link"
+                          className="text-xs font-medium text-[var(--text-secondary)]"
+                        >
+                          Direct WhatsApp Link (Business / QR link)
+                        </label>
+                        {settingsForm.whatsappLink ? (
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setSettingsForm({
+                                ...settingsForm,
+                                whatsappLink: '',
+                              })
+                            }
+                            className="text-[11px] text-red-500 hover:underline cursor-pointer"
+                          >
+                            Clear
+                          </button>
+                        ) : null}
+                      </div>
+                      <input
+                        id="settings-whatsapp-link"
+                        type="url"
+                        value={settingsForm.whatsappLink}
+                        onChange={(e) =>
+                          setSettingsForm({
+                            ...settingsForm,
+                            whatsappLink: e.target.value,
+                          })
+                        }
+                        placeholder="e.g., https://wa.me/message/KSBZDVJTSEJYC1"
+                        data-testid="admin-whatsapp-link-input"
+                        className={`w-full rounded-xl border bg-[var(--bg-input)] px-3.5 py-2.5 text-sm text-[var(--text-primary)] focus:border-[var(--border-gold-strong)] focus:outline-none ${
+                          settingsForm.whatsappMode === 'link'
+                            ? 'border-[var(--border-gold)]'
+                            : 'border-[var(--border-subtle)] opacity-80'
+                        }`}
+                      />
+                    </div>
+
+                    {/* Live status preview */}
+                    {!settingsForm.whatsappEnabled ? (
+                      <p className="text-xs text-amber-600 dark:text-amber-300">
+                        Disabled: Tick &ldquo;Enable WhatsApp on site&rdquo; to
+                        activate WhatsApp buttons.
+                      </p>
+                    ) : settingsForm.whatsappMode === 'link' ? (
+                      settingsForm.whatsappLink.trim() ? (
+                        previewWaLinkValid ? (
+                          <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/10 p-3 text-xs text-emerald-600 dark:text-emerald-300 space-y-1">
+                            <p className="font-medium">
+                              Active mode: Direct WhatsApp Link
+                            </p>
+                            <p className="break-all text-[11px] opacity-85">
+                              {sampleWaUrl}
+                            </p>
+                          </div>
+                        ) : (
+                          <p className="text-xs text-red-500 dark:text-red-300">
+                            Enter a valid HTTPS WhatsApp link (wa.me or
+                            whatsapp.com).
+                          </p>
+                        )
+                      ) : (
+                        <p className="text-xs text-amber-600 dark:text-amber-300">
+                          Empty link: WhatsApp buttons will remain disabled while
+                          Direct Link mode is selected.
+                        </p>
+                      )
+                    ) : settingsForm.whatsappNumber.trim() ? (
                       previewValid ? (
                         <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/10 p-3 text-xs text-emerald-600 dark:text-emerald-300 space-y-1">
                           <p className="font-medium">
-                            Valid WhatsApp number: +{previewDigits}
+                            Active mode: Phone Number (+{previewDigits})
                           </p>
                           <p className="break-all text-[11px] opacity-85">
                             Sample link: {sampleWaUrl}
@@ -1223,60 +1423,209 @@ export function AdminDashboardPage() {
                       )
                     ) : (
                       <p className="text-xs text-amber-600 dark:text-amber-300">
-                        Empty: WhatsApp buttons will remain disabled on the
-                        storefront.
+                        Empty number: WhatsApp buttons will remain disabled while
+                        Phone Number mode is selected.
                       </p>
                     )}
                   </div>
 
                   {/* 2. Telegram */}
-                  <div className="rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-card-elevated)] p-4 space-y-2.5">
-                    <div className="flex items-center justify-between gap-2">
-                      <label
-                        htmlFor="settings-telegram"
-                        className="inline-flex items-center gap-2 text-xs font-semibold text-[var(--text-primary)]"
-                      >
+                  <div className="rounded-xl border border-[var(--border-gold)]/70 bg-[var(--bg-card-elevated)] p-4 space-y-3.5">
+                    <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[var(--border-subtle)] pb-2.5">
+                      <span className="inline-flex items-center gap-2 text-sm font-semibold text-[var(--text-primary)]">
                         <TelegramIcon className="h-4 w-4 text-[#2AABEE]" />
-                        <span>
-                          Telegram Username or International Phone Number
-                        </span>
-                      </label>
-                      {settingsForm.telegramHandle ? (
-                        <button
-                          type="button"
-                          onClick={() =>
+                        <span>Telegram</span>
+                      </span>
+                      <label className="inline-flex items-center gap-2 text-xs font-medium text-[var(--text-secondary)] cursor-pointer select-none">
+                        <input
+                          type="checkbox"
+                          checked={settingsForm.telegramEnabled}
+                          onChange={(e) =>
                             setSettingsForm({
                               ...settingsForm,
-                              telegramHandle: '',
+                              telegramEnabled: e.target.checked,
                             })
                           }
-                          className="text-[11px] text-red-500 hover:underline cursor-pointer"
-                        >
-                          Clear
-                        </button>
-                      ) : null}
+                          data-testid="admin-telegram-enabled"
+                          className="h-4 w-4 rounded accent-[#D4AF37]"
+                        />
+                        <span>Enable Telegram on site</span>
+                      </label>
                     </div>
-                    <input
-                      id="settings-telegram"
-                      type="text"
-                      value={settingsForm.telegramHandle}
-                      onChange={(e) =>
-                        setSettingsForm({
-                          ...settingsForm,
-                          telegramHandle: e.target.value,
-                        })
-                      }
-                      placeholder="e.g., @ColomboTours or +94 77 123 4567"
-                      data-testid="admin-telegram-input"
-                      className="w-full rounded-xl border border-[var(--border-gold)] bg-[var(--bg-input)] px-3.5 py-2.5 text-sm text-[var(--text-primary)] focus:border-[var(--border-gold-strong)] focus:outline-none"
-                    />
 
-                    {settingsForm.telegramHandle.trim() ? (
+                    {/* Mode selector: Username/Phone vs Direct Link */}
+                    <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                      <label
+                        className={`flex items-center gap-2.5 rounded-xl border px-3 py-2 text-xs cursor-pointer transition-colors ${
+                          settingsForm.telegramMode === 'handle'
+                            ? 'border-[var(--border-gold-strong)] bg-[var(--gold-soft-bg)] text-[var(--text-primary)] font-semibold'
+                            : 'border-[var(--border-subtle)] bg-[var(--bg-input)] text-[var(--text-secondary)]'
+                        }`}
+                      >
+                        <input
+                          type="radio"
+                          name="telegramMode"
+                          value="handle"
+                          checked={settingsForm.telegramMode === 'handle'}
+                          onChange={() =>
+                            setSettingsForm({
+                              ...settingsForm,
+                              telegramMode: 'handle',
+                            })
+                          }
+                          data-testid="admin-telegram-mode-handle"
+                          className="accent-[#D4AF37]"
+                        />
+                        <span>Use Username / Phone</span>
+                      </label>
+
+                      <label
+                        className={`flex items-center gap-2.5 rounded-xl border px-3 py-2 text-xs cursor-pointer transition-colors ${
+                          settingsForm.telegramMode === 'link'
+                            ? 'border-[var(--border-gold-strong)] bg-[var(--gold-soft-bg)] text-[var(--text-primary)] font-semibold'
+                            : 'border-[var(--border-subtle)] bg-[var(--bg-input)] text-[var(--text-secondary)]'
+                        }`}
+                      >
+                        <input
+                          type="radio"
+                          name="telegramMode"
+                          value="link"
+                          checked={settingsForm.telegramMode === 'link'}
+                          onChange={() =>
+                            setSettingsForm({
+                              ...settingsForm,
+                              telegramMode: 'link',
+                            })
+                          }
+                          data-testid="admin-telegram-mode-link"
+                          className="accent-[#D4AF37]"
+                        />
+                        <span>Use Direct Telegram Link</span>
+                      </label>
+                    </div>
+
+                    {/* Option A: Username or Phone */}
+                    <div className="space-y-1.5">
+                      <div className="flex items-center justify-between gap-2">
+                        <label
+                          htmlFor="settings-telegram"
+                          className="text-xs font-medium text-[var(--text-secondary)]"
+                        >
+                          Telegram @Username or Phone Number
+                        </label>
+                        {settingsForm.telegramHandle ? (
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setSettingsForm({
+                                ...settingsForm,
+                                telegramHandle: '',
+                              })
+                            }
+                            className="text-[11px] text-red-500 hover:underline cursor-pointer"
+                          >
+                            Clear
+                          </button>
+                        ) : null}
+                      </div>
+                      <input
+                        id="settings-telegram"
+                        type="text"
+                        value={settingsForm.telegramHandle}
+                        onChange={(e) =>
+                          setSettingsForm({
+                            ...settingsForm,
+                            telegramHandle: e.target.value,
+                          })
+                        }
+                        placeholder="e.g., @COLOMBOTOURS or +94 77 123 4567"
+                        data-testid="admin-telegram-input"
+                        className={`w-full rounded-xl border bg-[var(--bg-input)] px-3.5 py-2.5 text-sm text-[var(--text-primary)] focus:border-[var(--border-gold-strong)] focus:outline-none ${
+                          settingsForm.telegramMode === 'handle'
+                            ? 'border-[var(--border-gold)]'
+                            : 'border-[var(--border-subtle)] opacity-80'
+                        }`}
+                      />
+                    </div>
+
+                    {/* Option B: Direct Link */}
+                    <div className="space-y-1.5">
+                      <div className="flex items-center justify-between gap-2">
+                        <label
+                          htmlFor="settings-telegram-link"
+                          className="text-xs font-medium text-[var(--text-secondary)]"
+                        >
+                          Direct Telegram Link (Profile / Invite link)
+                        </label>
+                        {settingsForm.telegramLink ? (
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setSettingsForm({
+                                ...settingsForm,
+                                telegramLink: '',
+                              })
+                            }
+                            className="text-[11px] text-red-500 hover:underline cursor-pointer"
+                          >
+                            Clear
+                          </button>
+                        ) : null}
+                      </div>
+                      <input
+                        id="settings-telegram-link"
+                        type="url"
+                        value={settingsForm.telegramLink}
+                        onChange={(e) =>
+                          setSettingsForm({
+                            ...settingsForm,
+                            telegramLink: e.target.value,
+                          })
+                        }
+                        placeholder="e.g., https://t.me/COLOMBOTOURS"
+                        data-testid="admin-telegram-link-input"
+                        className={`w-full rounded-xl border bg-[var(--bg-input)] px-3.5 py-2.5 text-sm text-[var(--text-primary)] focus:border-[var(--border-gold-strong)] focus:outline-none ${
+                          settingsForm.telegramMode === 'link'
+                            ? 'border-[var(--border-gold)]'
+                            : 'border-[var(--border-subtle)] opacity-80'
+                        }`}
+                      />
+                    </div>
+
+                    {/* Live status preview */}
+                    {!settingsForm.telegramEnabled ? (
+                      <p className="text-xs text-amber-600 dark:text-amber-300">
+                        Disabled: Tick &ldquo;Enable Telegram on site&rdquo; to
+                        activate Telegram buttons.
+                      </p>
+                    ) : settingsForm.telegramMode === 'link' ? (
+                      settingsForm.telegramLink.trim() ? (
+                        previewTgLinkValid ? (
+                          <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/10 p-3 text-xs text-emerald-600 dark:text-emerald-300 space-y-1">
+                            <p className="font-medium">
+                              Active mode: Direct Telegram Link
+                            </p>
+                            <p className="break-all text-[11px] opacity-85">
+                              {sampleTgUrl}
+                            </p>
+                          </div>
+                        ) : (
+                          <p className="text-xs text-red-500 dark:text-red-300">
+                            Enter a valid HTTPS Telegram link (t.me, telegram.me,
+                            or telegram.dog).
+                          </p>
+                        )
+                      ) : (
+                        <p className="text-xs text-amber-600 dark:text-amber-300">
+                          Empty link: Telegram buttons will remain disabled while
+                          Direct Link mode is selected.
+                        </p>
+                      )
+                    ) : settingsForm.telegramHandle.trim() ? (
                       previewTgValid ? (
                         <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/10 p-3 text-xs text-emerald-600 dark:text-emerald-300 space-y-1">
                           <p className="font-medium">
-                            Valid Telegram contact:{' '}
-                            {formatTelegramDisplay(previewTgHandle)}
+                            Active mode: {formatTelegramDisplay(previewTgHandle)}
                           </p>
                           <p className="break-all text-[11px] opacity-85">
                             Sample link: {sampleTgUrl}
@@ -1291,55 +1640,206 @@ export function AdminDashboardPage() {
                       )
                     ) : (
                       <p className="text-xs text-amber-600 dark:text-amber-300">
-                        Empty: Telegram buttons will remain disabled on the
-                        storefront.
+                        Empty handle: Telegram buttons will remain disabled while
+                        Username / Phone mode is selected.
                       </p>
                     )}
                   </div>
 
                   {/* 3. WeChat */}
-                  <div className="rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-card-elevated)] p-4 space-y-3">
-                    <div className="flex items-center justify-between gap-2">
-                      <label
-                        htmlFor="settings-wechat"
-                        className="inline-flex items-center gap-2 text-xs font-semibold text-[var(--text-primary)]"
-                      >
+                  <div className="rounded-xl border border-[var(--border-gold)]/70 bg-[var(--bg-card-elevated)] p-4 space-y-3.5">
+                    <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[var(--border-subtle)] pb-2.5">
+                      <span className="inline-flex items-center gap-2 text-sm font-semibold text-[var(--text-primary)]">
                         <WeChatIcon className="h-4 w-4 text-[#07C160]" />
-                        <span>
-                          WeChat ID or Phone Number (plus optional WeChat QR Code)
-                        </span>
-                      </label>
-                      {settingsForm.wechatId ? (
-                        <button
-                          type="button"
-                          onClick={() =>
-                            setSettingsForm({ ...settingsForm, wechatId: '' })
+                        <span>WeChat</span>
+                      </span>
+                      <label className="inline-flex items-center gap-2 text-xs font-medium text-[var(--text-secondary)] cursor-pointer select-none">
+                        <input
+                          type="checkbox"
+                          checked={settingsForm.wechatEnabled}
+                          onChange={(e) =>
+                            setSettingsForm({
+                              ...settingsForm,
+                              wechatEnabled: e.target.checked,
+                            })
                           }
-                          className="text-[11px] text-red-500 hover:underline cursor-pointer"
-                        >
-                          Clear ID
-                        </button>
-                      ) : null}
+                          data-testid="admin-wechat-enabled"
+                          className="h-4 w-4 rounded accent-[#D4AF37]"
+                        />
+                        <span>Enable WeChat on site</span>
+                      </label>
                     </div>
-                    <input
-                      id="settings-wechat"
-                      type="text"
-                      value={settingsForm.wechatId}
-                      onChange={(e) =>
-                        setSettingsForm({
-                          ...settingsForm,
-                          wechatId: e.target.value,
-                        })
-                      }
-                      placeholder="e.g., ColomboToursLK or +94 77 123 4567"
-                      data-testid="admin-wechat-input"
-                      className="w-full rounded-xl border border-[var(--border-gold)] bg-[var(--bg-input)] px-3.5 py-2.5 text-sm text-[var(--text-primary)] focus:border-[var(--border-gold-strong)] focus:outline-none"
-                    />
 
-                    {settingsForm.wechatId.trim() ? (
+                    {/* Mode selector: WeChat ID / QR Modal vs Direct Link */}
+                    <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                      <label
+                        className={`flex items-center gap-2.5 rounded-xl border px-3 py-2 text-xs cursor-pointer transition-colors ${
+                          settingsForm.wechatMode === 'id'
+                            ? 'border-[var(--border-gold-strong)] bg-[var(--gold-soft-bg)] text-[var(--text-primary)] font-semibold'
+                            : 'border-[var(--border-subtle)] bg-[var(--bg-input)] text-[var(--text-secondary)]'
+                        }`}
+                      >
+                        <input
+                          type="radio"
+                          name="wechatMode"
+                          value="id"
+                          checked={settingsForm.wechatMode === 'id'}
+                          onChange={() =>
+                            setSettingsForm({
+                              ...settingsForm,
+                              wechatMode: 'id',
+                            })
+                          }
+                          data-testid="admin-wechat-mode-id"
+                          className="accent-[#D4AF37]"
+                        />
+                        <span>Use WeChat ID / QR Modal</span>
+                      </label>
+
+                      <label
+                        className={`flex items-center gap-2.5 rounded-xl border px-3 py-2 text-xs cursor-pointer transition-colors ${
+                          settingsForm.wechatMode === 'link'
+                            ? 'border-[var(--border-gold-strong)] bg-[var(--gold-soft-bg)] text-[var(--text-primary)] font-semibold'
+                            : 'border-[var(--border-subtle)] bg-[var(--bg-input)] text-[var(--text-secondary)]'
+                        }`}
+                      >
+                        <input
+                          type="radio"
+                          name="wechatMode"
+                          value="link"
+                          checked={settingsForm.wechatMode === 'link'}
+                          onChange={() =>
+                            setSettingsForm({
+                              ...settingsForm,
+                              wechatMode: 'link',
+                            })
+                          }
+                          data-testid="admin-wechat-mode-link"
+                          className="accent-[#D4AF37]"
+                        />
+                        <span>Use Direct WeChat Link</span>
+                      </label>
+                    </div>
+
+                    {/* Option A: WeChat ID / Phone */}
+                    <div className="space-y-1.5">
+                      <div className="flex items-center justify-between gap-2">
+                        <label
+                          htmlFor="settings-wechat"
+                          className="text-xs font-medium text-[var(--text-secondary)]"
+                        >
+                          WeChat ID or Phone Number
+                        </label>
+                        {settingsForm.wechatId ? (
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setSettingsForm({ ...settingsForm, wechatId: '' })
+                            }
+                            className="text-[11px] text-red-500 hover:underline cursor-pointer"
+                          >
+                            Clear ID
+                          </button>
+                        ) : null}
+                      </div>
+                      <input
+                        id="settings-wechat"
+                        type="text"
+                        value={settingsForm.wechatId}
+                        onChange={(e) =>
+                          setSettingsForm({
+                            ...settingsForm,
+                            wechatId: e.target.value,
+                          })
+                        }
+                        placeholder="e.g., ColomboToursLK or +94 77 123 4567"
+                        data-testid="admin-wechat-input"
+                        className={`w-full rounded-xl border bg-[var(--bg-input)] px-3.5 py-2.5 text-sm text-[var(--text-primary)] focus:border-[var(--border-gold-strong)] focus:outline-none ${
+                          settingsForm.wechatMode === 'id'
+                            ? 'border-[var(--border-gold)]'
+                            : 'border-[var(--border-subtle)] opacity-80'
+                        }`}
+                      />
+                    </div>
+
+                    {/* Option B: Direct WeChat Link */}
+                    <div className="space-y-1.5">
+                      <div className="flex items-center justify-between gap-2">
+                        <label
+                          htmlFor="settings-wechat-link"
+                          className="text-xs font-medium text-[var(--text-secondary)]"
+                        >
+                          Direct WeChat Link (u.wechat.com / weixin.qq.com)
+                        </label>
+                        {settingsForm.wechatLink ? (
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setSettingsForm({
+                                ...settingsForm,
+                                wechatLink: '',
+                              })
+                            }
+                            className="text-[11px] text-red-500 hover:underline cursor-pointer"
+                          >
+                            Clear Link
+                          </button>
+                        ) : null}
+                      </div>
+                      <input
+                        id="settings-wechat-link"
+                        type="url"
+                        value={settingsForm.wechatLink}
+                        onChange={(e) =>
+                          setSettingsForm({
+                            ...settingsForm,
+                            wechatLink: e.target.value,
+                          })
+                        }
+                        placeholder="e.g., https://u.wechat.com/kHm8VCFbetF_uPu8roHEfig?s=2"
+                        data-testid="admin-wechat-link-input"
+                        className={`w-full rounded-xl border bg-[var(--bg-input)] px-3.5 py-2.5 text-sm text-[var(--text-primary)] focus:border-[var(--border-gold-strong)] focus:outline-none ${
+                          settingsForm.wechatMode === 'link'
+                            ? 'border-[var(--border-gold)]'
+                            : 'border-[var(--border-subtle)] opacity-80'
+                        }`}
+                      />
+                    </div>
+
+                    {/* Live status preview */}
+                    {!settingsForm.wechatEnabled ? (
+                      <p className="text-xs text-amber-600 dark:text-amber-300">
+                        Disabled: Tick &ldquo;Enable WeChat on site&rdquo; to
+                        activate WeChat buttons.
+                      </p>
+                    ) : settingsForm.wechatMode === 'link' ? (
+                      settingsForm.wechatLink.trim() ? (
+                        previewWeChatLinkValid ? (
+                          <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/10 p-3 text-xs text-emerald-600 dark:text-emerald-300 space-y-1">
+                            <p className="font-medium">
+                              Active mode: Direct WeChat Link
+                            </p>
+                            <p className="break-all text-[11px] opacity-85">
+                              {sampleWeChatLink}
+                            </p>
+                          </div>
+                        ) : (
+                          <p className="text-xs text-red-500 dark:text-red-300">
+                            Enter a valid HTTPS WeChat link (u.wechat.com or
+                            weixin.qq.com).
+                          </p>
+                        )
+                      ) : (
+                        <p className="text-xs text-amber-600 dark:text-amber-300">
+                          Empty link: WeChat buttons will remain disabled while
+                          Direct Link mode is selected.
+                        </p>
+                      )
+                    ) : settingsForm.wechatId.trim() ? (
                       previewWeChatValid ? (
                         <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/10 p-3 text-xs text-emerald-600 dark:text-emerald-300">
-                          Valid WeChat contact: <strong>{previewWeChatId}</strong>
+                          Active mode: WeChat ID / QR Modal (
+                          <strong>{previewWeChatId}</strong>)
                         </div>
                       ) : (
                         <p className="text-xs text-red-500 dark:text-red-300">
@@ -1347,12 +1847,16 @@ export function AdminDashboardPage() {
                           starting with a letter) or international phone number.
                         </p>
                       )
-                    ) : !settingsForm.wechatQrUrl ? (
+                    ) : settingsForm.wechatQrUrl ? (
+                      <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/10 p-3 text-xs text-emerald-600 dark:text-emerald-300">
+                        Active mode: WeChat QR Modal (QR code uploaded)
+                      </div>
+                    ) : (
                       <p className="text-xs text-amber-600 dark:text-amber-300">
-                        Empty: WeChat buttons will remain disabled unless a
-                        WeChat ID or QR code is set.
+                        Empty: WeChat buttons will remain disabled while ID / QR
+                        mode is selected unless an ID or QR code is set.
                       </p>
-                    ) : null}
+                    )}
 
                     {/* Optional WeChat QR code image upload */}
                     <div className="flex flex-wrap items-center gap-3 pt-1">
@@ -1526,8 +2030,14 @@ export function AdminDashboardPage() {
                   onClick={() =>
                     handleSaveSettings(null, {
                       whatsappNumber: '',
+                      whatsappLink: '',
+                      whatsappEnabled: false,
                       telegramHandle: '',
+                      telegramLink: '',
+                      telegramEnabled: false,
                       wechatId: '',
+                      wechatLink: '',
+                      wechatEnabled: false,
                       wechatQrUrl: '',
                       wechatQrStorageProvider: '',
                       wechatQrMediaId: '',

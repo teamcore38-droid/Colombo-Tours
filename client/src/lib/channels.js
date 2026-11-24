@@ -4,6 +4,49 @@ const TELEGRAM_PHONE_REGEX = /^\+[1-9]\d{7,14}$/;
 const WECHAT_ID_REGEX = /^[a-zA-Z][a-zA-Z0-9_-]{5,19}$/;
 const WECHAT_PHONE_REGEX = /^\+[1-9]\d{7,14}$/;
 
+const WHATSAPP_HOSTS = new Set([
+  'wa.me',
+  'api.whatsapp.com',
+  'chat.whatsapp.com',
+  'whatsapp.com',
+  'www.whatsapp.com',
+]);
+
+const TELEGRAM_HOSTS = new Set([
+  't.me',
+  'www.t.me',
+  'telegram.me',
+  'www.telegram.me',
+  'telegram.dog',
+]);
+
+const WECHAT_HOSTS = new Set([
+  'u.wechat.com',
+  'weixin.qq.com',
+  'work.weixin.qq.com',
+  'mp.weixin.qq.com',
+]);
+
+function sanitizeAllowedHttpsLink(raw, allowedHosts) {
+  if (typeof raw !== 'string') return '';
+  const trimmed = raw.trim();
+  if (!trimmed || trimmed.length > 500 || /\s/.test(trimmed)) return '';
+
+  let parsed;
+  try {
+    parsed = new URL(trimmed);
+  } catch {
+    return '';
+  }
+
+  if (parsed.protocol !== 'https:') return '';
+  const host = parsed.hostname.toLowerCase();
+  if (!allowedHosts.has(host)) return '';
+  if (!parsed.pathname || parsed.pathname === '/') return '';
+
+  return parsed.toString();
+}
+
 // --- WhatsApp ---
 export function normalizeWhatsAppNumber(raw) {
   if (typeof raw !== 'string') return '';
@@ -19,6 +62,14 @@ export function isValidWhatsAppNumber(raw) {
   return E164_DIGITS_REGEX.test(normalizeWhatsAppNumber(raw));
 }
 
+export function sanitizeWhatsAppLink(raw) {
+  return sanitizeAllowedHttpsLink(raw, WHATSAPP_HOSTS);
+}
+
+export function isValidWhatsAppLink(raw) {
+  return Boolean(sanitizeWhatsAppLink(raw));
+}
+
 export function buildWhatsAppUrl(rawNumber, message) {
   const digits = normalizeWhatsAppNumber(rawNumber);
   if (!E164_DIGITS_REGEX.test(digits)) {
@@ -28,6 +79,21 @@ export function buildWhatsAppUrl(rawNumber, message) {
   return `https://wa.me/${digits}?text=${encoded}`;
 }
 
+export function resolveWhatsAppUrl({
+  whatsappNumber = '',
+  whatsappLink = '',
+  whatsappMode = 'number',
+  whatsappEnabled = true,
+  message = '',
+} = {}) {
+  if (whatsappEnabled === false) return null;
+  if (whatsappMode === 'link') {
+    const safeLink = sanitizeWhatsAppLink(whatsappLink);
+    return safeLink || null;
+  }
+  return buildWhatsAppUrl(whatsappNumber, message);
+}
+
 // --- Telegram ---
 export function normalizeTelegramHandle(raw) {
   if (typeof raw !== 'string') return '';
@@ -35,10 +101,10 @@ export function normalizeTelegramHandle(raw) {
   if (!cleaned) return '';
 
   cleaned = cleaned.replace(
-    /^https?:\/\/(?:www\.)?(?:t\.me|telegram\.me)\//i,
+    /^https?:\/\/(?:www\.)?(?:t\.me|telegram\.me|telegram\.dog)\//i,
     ''
   );
-  cleaned = cleaned.replace(/^(?:t\.me|telegram\.me)\//i, '');
+  cleaned = cleaned.replace(/^(?:t\.me|telegram\.me|telegram\.dog)\//i, '');
   cleaned = cleaned.split(/[?#]/)[0].replace(/\/+$/, '').trim();
   if (!cleaned) return '';
 
@@ -69,11 +135,14 @@ export function formatTelegramDisplay(raw) {
   return normalized.startsWith('+') ? normalized : `@${normalized}`;
 }
 
-/**
- * Builds an official Telegram deep link with pre-filled message.
- * Supports both usernames (https://t.me/ColomboTours?text=...)
- * and international phone numbers (https://t.me/+94771234567?text=...).
- */
+export function sanitizeTelegramLink(raw) {
+  return sanitizeAllowedHttpsLink(raw, TELEGRAM_HOSTS);
+}
+
+export function isValidTelegramLink(raw) {
+  return Boolean(sanitizeTelegramLink(raw));
+}
+
 export function buildTelegramUrl(rawHandle, message) {
   const normalized = normalizeTelegramHandle(rawHandle);
   if (!isValidTelegramHandle(normalized)) {
@@ -81,6 +150,37 @@ export function buildTelegramUrl(rawHandle, message) {
   }
   const encoded = encodeURIComponent(String(message || '').trim());
   return `https://t.me/${normalized}?text=${encoded}`;
+}
+
+export function resolveTelegramUrl({
+  telegramHandle = '',
+  telegramLink = '',
+  telegramMode = 'handle',
+  telegramEnabled = true,
+  message = '',
+} = {}) {
+  if (telegramEnabled === false) return null;
+  if (telegramMode === 'link') {
+    const safeLink = sanitizeTelegramLink(telegramLink);
+    if (!safeLink) return null;
+    try {
+      const parsed = new URL(safeLink);
+      const pathSegment = parsed.pathname.replace(/^\/+|\/+$/g, '');
+      const trimmedMsg = String(message || '').trim();
+      // If link points directly to a Telegram username (not an invite +link) with no existing query, attach pre-filled text
+      if (
+        trimmedMsg &&
+        !parsed.search &&
+        TELEGRAM_USERNAME_REGEX.test(pathSegment)
+      ) {
+        return `${safeLink}?text=${encodeURIComponent(trimmedMsg)}`;
+      }
+    } catch {
+      // return sanitized link as-is
+    }
+    return safeLink;
+  }
+  return buildTelegramUrl(telegramHandle, message);
 }
 
 // --- WeChat ---
@@ -110,6 +210,14 @@ export function isValidWeChatId(raw) {
   return WECHAT_ID_REGEX.test(normalized);
 }
 
+export function sanitizeWeChatLink(raw) {
+  return sanitizeAllowedHttpsLink(raw, WECHAT_HOSTS);
+}
+
+export function isValidWeChatLink(raw) {
+  return Boolean(sanitizeWeChatLink(raw));
+}
+
 export function isSafeQrUrl(raw) {
   if (typeof raw !== 'string') return false;
   const trimmed = raw.trim();
@@ -122,6 +230,34 @@ export function isSafeQrUrl(raw) {
 
 export function isWeChatConfigured(wechatId, wechatQrUrl) {
   return isValidWeChatId(wechatId) || isSafeQrUrl(wechatQrUrl);
+}
+
+export function resolveWeChatAction({
+  wechatId = '',
+  wechatLink = '',
+  wechatQrUrl = '',
+  wechatMode = 'id',
+  wechatEnabled = true,
+} = {}) {
+  if (wechatEnabled === false) {
+    return { active: false, mode: wechatMode, url: null };
+  }
+  if (wechatMode === 'link') {
+    const safeLink = sanitizeWeChatLink(wechatLink);
+    if (!safeLink) {
+      return { active: false, mode: 'link', url: null };
+    }
+    return { active: true, mode: 'link', url: safeLink };
+  }
+  const hasModalData = isWeChatConfigured(wechatId, wechatQrUrl);
+  return {
+    active: hasModalData,
+    mode: 'id',
+    url: null,
+    wechatId: isValidWeChatId(wechatId) ? normalizeWeChatId(wechatId) : '',
+    wechatQrUrl: isSafeQrUrl(wechatQrUrl) ? wechatQrUrl.trim() : '',
+    wechatLink: sanitizeWeChatLink(wechatLink),
+  };
 }
 
 // --- Enquiry Message Builders (Always English so staff read bookings clearly) ---

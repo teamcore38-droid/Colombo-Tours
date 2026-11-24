@@ -14,12 +14,18 @@ import {
 } from '../utils/storage.js';
 import {
   isValidTelegramHandle,
+  isValidTelegramLink,
   isValidWeChatId,
+  isValidWeChatLink,
+  isValidWhatsAppLink,
   isValidWhatsAppNumber,
   normalizeTelegramHandle,
   normalizeWeChatId,
   normalizeWhatsAppNumber,
   sanitizeSafeImageUrl,
+  sanitizeTelegramLink,
+  sanitizeWeChatLink,
+  sanitizeWhatsAppLink,
 } from '../utils/channels.js';
 import { serializeSettings } from './public.js';
 
@@ -761,6 +767,33 @@ router.put('/settings', async (req, res, next) => {
       }
     }
 
+    if (req.body?.whatsappLink !== undefined) {
+      const raw = String(req.body.whatsappLink || '').trim();
+      if (raw === '') {
+        settings.whatsappLink = '';
+      } else {
+        if (!isValidWhatsAppLink(raw)) {
+          return res.status(400).json({
+            error:
+              'Enter a valid HTTPS WhatsApp link (e.g., https://wa.me/message/... or https://chat.whatsapp.com/...).',
+          });
+        }
+        settings.whatsappLink = sanitizeWhatsAppLink(raw);
+      }
+    }
+
+    if (req.body?.whatsappMode !== undefined) {
+      const mode = String(req.body.whatsappMode || '').trim();
+      if (mode !== 'number' && mode !== 'link') {
+        return res.status(400).json({ error: 'Invalid WhatsApp mode.' });
+      }
+      settings.whatsappMode = mode;
+    }
+
+    if (req.body?.whatsappEnabled !== undefined) {
+      settings.whatsappEnabled = Boolean(req.body.whatsappEnabled);
+    }
+
     if (req.body?.telegramHandle !== undefined) {
       const raw = String(req.body.telegramHandle || '').trim();
       if (raw === '') {
@@ -777,6 +810,33 @@ router.put('/settings', async (req, res, next) => {
       }
     }
 
+    if (req.body?.telegramLink !== undefined) {
+      const raw = String(req.body.telegramLink || '').trim();
+      if (raw === '') {
+        settings.telegramLink = '';
+      } else {
+        if (!isValidTelegramLink(raw)) {
+          return res.status(400).json({
+            error:
+              'Enter a valid HTTPS Telegram link (e.g., https://t.me/COLOMBOTOURS).',
+          });
+        }
+        settings.telegramLink = sanitizeTelegramLink(raw);
+      }
+    }
+
+    if (req.body?.telegramMode !== undefined) {
+      const mode = String(req.body.telegramMode || '').trim();
+      if (mode !== 'handle' && mode !== 'link') {
+        return res.status(400).json({ error: 'Invalid Telegram mode.' });
+      }
+      settings.telegramMode = mode;
+    }
+
+    if (req.body?.telegramEnabled !== undefined) {
+      settings.telegramEnabled = Boolean(req.body.telegramEnabled);
+    }
+
     if (req.body?.wechatId !== undefined) {
       const raw = String(req.body.wechatId || '').trim();
       if (raw === '') {
@@ -791,6 +851,33 @@ router.put('/settings', async (req, res, next) => {
         }
         settings.wechatId = normalized;
       }
+    }
+
+    if (req.body?.wechatLink !== undefined) {
+      const raw = String(req.body.wechatLink || '').trim();
+      if (raw === '') {
+        settings.wechatLink = '';
+      } else {
+        if (!isValidWeChatLink(raw)) {
+          return res.status(400).json({
+            error:
+              'Enter a valid HTTPS WeChat link (e.g., https://u.wechat.com/...).',
+          });
+        }
+        settings.wechatLink = sanitizeWeChatLink(raw);
+      }
+    }
+
+    if (req.body?.wechatMode !== undefined) {
+      const mode = String(req.body.wechatMode || '').trim();
+      if (mode !== 'id' && mode !== 'link') {
+        return res.status(400).json({ error: 'Invalid WeChat mode.' });
+      }
+      settings.wechatMode = mode;
+    }
+
+    if (req.body?.wechatEnabled !== undefined) {
+      settings.wechatEnabled = Boolean(req.body.wechatEnabled);
     }
 
     let removedQrPhoto = null;

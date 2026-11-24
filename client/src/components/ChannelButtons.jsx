@@ -1,5 +1,5 @@
 import { useOptionalSite } from '../context/SiteContext';
-import { buildTelegramUrl, isWeChatConfigured } from '../lib/channels';
+import { resolveTelegramUrl, resolveWeChatAction } from '../lib/channels';
 import { WhatsAppButton, WhatsAppIcon } from './WhatsAppButton';
 
 export { WhatsAppButton, WhatsAppIcon };
@@ -55,11 +55,13 @@ const VARIANT_STYLES = {
 
 /**
  * Centralized Telegram enquiry button.
- * Opens https://t.me/<handle>?text=<message> and automatically disables when
- * no valid Telegram username/number is configured in Admin.
+ * Supports both Username/Phone mode and Direct Link mode, plus Admin enable toggle.
  */
 export function TelegramButton({
   telegramHandle,
+  telegramLink,
+  telegramMode,
+  telegramEnabled,
   message,
   children = 'Telegram',
   variant = 'outline',
@@ -72,18 +74,27 @@ export function TelegramButton({
   dataTestId,
 }) {
   const site = useOptionalSite();
-  const effectiveHandle =
-    telegramHandle !== undefined
-      ? telegramHandle
-      : site?.settings?.telegramHandle || '';
-  const url = buildTelegramUrl(effectiveHandle, message);
+  const s = site?.settings;
+  const url = resolveTelegramUrl({
+    telegramHandle:
+      telegramHandle !== undefined ? telegramHandle : s?.telegramHandle || '',
+    telegramLink:
+      telegramLink !== undefined ? telegramLink : s?.telegramLink || '',
+    telegramMode:
+      telegramMode !== undefined ? telegramMode : s?.telegramMode || 'handle',
+    telegramEnabled:
+      telegramEnabled !== undefined
+        ? telegramEnabled
+        : s?.telegramEnabled !== false,
+    message,
+  });
   const isDisabled = disabled || !url;
 
   const baseClass = `inline-flex items-center justify-center font-medium leading-none select-none whitespace-nowrap focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--gold-bright)] ${SIZE_STYLES[size] || SIZE_STYLES.sm} ${VARIANT_STYLES[variant] || VARIANT_STYLES.outline} ${className}`;
 
   if (isDisabled) {
     const disabledReason = !url
-      ? 'Telegram enquiry is unavailable until a valid Telegram username or number is configured in Admin.'
+      ? 'Telegram enquiry is unavailable until Telegram is enabled and configured in Admin.'
       : 'Please correct the form details before sending your Telegram enquiry.';
     return (
       <button
@@ -114,7 +125,7 @@ export function TelegramButton({
       href={url}
       target="_blank"
       rel="noopener noreferrer"
-      aria-label={ariaLabel || `Book via Telegram`}
+      aria-label={ariaLabel || 'Book via Telegram'}
       onClick={onClick}
       data-testid={dataTestId}
       className={`${baseClass} cursor-pointer`}
@@ -131,13 +142,16 @@ export function TelegramButton({
 
 /**
  * Centralized WeChat enquiry button.
- * Opens the luxury WeChat Concierge modal with pre-filled English message,
- * copyable WeChat ID, optional scannable QR code, and mobile app deep link.
- * Automatically disables until a valid WeChat ID or QR code is configured in Admin.
+ * - In Direct Link mode (`wechatMode === 'link'`): opens the official https://u.wechat.com/... link directly.
+ * - In WeChat ID / QR mode (`wechatMode === 'id'`): opens the luxury WeChat Concierge modal with pre-filled message, copyable ID, and QR code.
+ * Automatically disables when unticked or unconfigured in Admin.
  */
 export function WeChatButton({
   wechatId,
+  wechatLink,
   wechatQrUrl,
+  wechatMode,
+  wechatEnabled,
   message,
   subjectLabel = '',
   children = 'WeChat',
@@ -151,18 +165,22 @@ export function WeChatButton({
   dataTestId,
 }) {
   const site = useOptionalSite();
-  const effectiveId =
-    wechatId !== undefined ? wechatId : site?.settings?.wechatId || '';
-  const effectiveQr =
-    wechatQrUrl !== undefined ? wechatQrUrl : site?.settings?.wechatQrUrl || '';
-  const configured = isWeChatConfigured(effectiveId, effectiveQr);
-  const isDisabled = disabled || !configured;
+  const s = site?.settings;
+  const action = resolveWeChatAction({
+    wechatId: wechatId !== undefined ? wechatId : s?.wechatId || '',
+    wechatLink: wechatLink !== undefined ? wechatLink : s?.wechatLink || '',
+    wechatQrUrl: wechatQrUrl !== undefined ? wechatQrUrl : s?.wechatQrUrl || '',
+    wechatMode: wechatMode !== undefined ? wechatMode : s?.wechatMode || 'id',
+    wechatEnabled:
+      wechatEnabled !== undefined ? wechatEnabled : s?.wechatEnabled !== false,
+  });
+  const isDisabled = disabled || !action.active;
 
   const baseClass = `inline-flex items-center justify-center font-medium leading-none select-none whitespace-nowrap focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--gold-bright)] ${SIZE_STYLES[size] || SIZE_STYLES.sm} ${VARIANT_STYLES[variant] || VARIANT_STYLES.outline} ${className}`;
 
   if (isDisabled) {
-    const disabledReason = !configured
-      ? 'WeChat enquiry is unavailable until a valid WeChat ID or QR code is configured in Admin.'
+    const disabledReason = !action.active
+      ? 'WeChat enquiry is unavailable until WeChat is enabled and configured in Admin.'
       : 'Please correct the form details before sending your WeChat enquiry.';
     return (
       <button
@@ -188,6 +206,27 @@ export function WeChatButton({
     );
   }
 
+  if (action.mode === 'link' && action.url) {
+    return (
+      <a
+        href={action.url}
+        target="_blank"
+        rel="noopener noreferrer"
+        aria-label={ariaLabel || 'Book via WeChat'}
+        onClick={onClick}
+        data-testid={dataTestId}
+        className={`${baseClass} cursor-pointer`}
+      >
+        {showIcon ? (
+          <WeChatIcon className="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0 text-[#07C160]" />
+        ) : null}
+        <span translate="no" className="notranslate">
+          {children}
+        </span>
+      </a>
+    );
+  }
+
   return (
     <button
       type="button"
@@ -198,8 +237,9 @@ export function WeChatButton({
         site?.openWeChatEnquiry?.({
           message: String(message || '').trim(),
           subjectLabel,
-          wechatId: effectiveId,
-          wechatQrUrl: effectiveQr,
+          wechatId: action.wechatId,
+          wechatQrUrl: action.wechatQrUrl,
+          wechatLink: action.wechatLink,
         });
       }}
       className={`${baseClass} cursor-pointer`}
@@ -223,9 +263,18 @@ export function BookingChannelGroup({
   message,
   subjectLabel = '',
   whatsappNumber,
+  whatsappLink,
+  whatsappMode,
+  whatsappEnabled,
   telegramHandle,
+  telegramLink,
+  telegramMode,
+  telegramEnabled,
   wechatId,
+  wechatLink,
   wechatQrUrl,
+  wechatMode,
+  wechatEnabled,
   disabled = false,
   size = 'xs',
   layout = 'grid',
@@ -235,20 +284,6 @@ export function BookingChannelGroup({
   className = '',
   onChannelClick,
 }) {
-  const site = useOptionalSite();
-  const resolvedWa =
-    whatsappNumber !== undefined
-      ? whatsappNumber
-      : site?.settings?.whatsappNumber || '';
-  const resolvedTg =
-    telegramHandle !== undefined
-      ? telegramHandle
-      : site?.settings?.telegramHandle || '';
-  const resolvedWcId =
-    wechatId !== undefined ? wechatId : site?.settings?.wechatId || '';
-  const resolvedWcQr =
-    wechatQrUrl !== undefined ? wechatQrUrl : site?.settings?.wechatQrUrl || '';
-
   const containerClass =
     layout === 'row'
       ? `flex flex-wrap items-center gap-2 ${className}`
@@ -259,7 +294,10 @@ export function BookingChannelGroup({
   return (
     <div className={containerClass} role="group" aria-label="Booking channels">
       <WhatsAppButton
-        whatsappNumber={resolvedWa}
+        whatsappNumber={whatsappNumber}
+        whatsappLink={whatsappLink}
+        whatsappMode={whatsappMode}
+        whatsappEnabled={whatsappEnabled}
         message={message}
         disabled={disabled}
         variant="gold"
@@ -276,7 +314,10 @@ export function BookingChannelGroup({
       </WhatsAppButton>
 
       <TelegramButton
-        telegramHandle={resolvedTg}
+        telegramHandle={telegramHandle}
+        telegramLink={telegramLink}
+        telegramMode={telegramMode}
+        telegramEnabled={telegramEnabled}
         message={message}
         disabled={disabled}
         variant="outline"
@@ -291,8 +332,11 @@ export function BookingChannelGroup({
       </TelegramButton>
 
       <WeChatButton
-        wechatId={resolvedWcId}
-        wechatQrUrl={resolvedWcQr}
+        wechatId={wechatId}
+        wechatLink={wechatLink}
+        wechatQrUrl={wechatQrUrl}
+        wechatMode={wechatMode}
+        wechatEnabled={wechatEnabled}
         message={message}
         subjectLabel={subjectLabel}
         disabled={disabled}

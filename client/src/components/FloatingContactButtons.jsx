@@ -1,8 +1,8 @@
 import { useSite } from '../context/SiteContext';
 import {
-  buildTelegramUrl,
-  buildWhatsAppUrl,
-  isWeChatConfigured,
+  resolveTelegramUrl,
+  resolveWeChatAction,
+  resolveWhatsAppUrl,
 } from '../lib/channels';
 import { TelegramIcon, WeChatIcon, WhatsAppIcon } from './ChannelButtons';
 
@@ -12,19 +12,34 @@ import { TelegramIcon, WeChatIcon, WhatsAppIcon } from './ChannelButtons';
  *   Middle: Telegram
  *   Bottom: WhatsApp
  *
- * Each button uses the centralized Admin settings and automatically disables
- * until that specific channel is configured.
+ * Each button resolves its active Admin mode (Number/ID vs Direct Link)
+ * and enable toggle, automatically disabling when unconfigured or unticked.
  */
 export function FloatingContactButtons() {
   const { settings, openWeChatEnquiry } = useSite();
   const message = settings.supportGreeting;
 
-  const waUrl = buildWhatsAppUrl(settings.whatsappNumber, message);
-  const tgUrl = buildTelegramUrl(settings.telegramHandle, message);
-  const wcConfigured = isWeChatConfigured(
-    settings.wechatId,
-    settings.wechatQrUrl
-  );
+  const waUrl = resolveWhatsAppUrl({
+    whatsappNumber: settings.whatsappNumber,
+    whatsappLink: settings.whatsappLink,
+    whatsappMode: settings.whatsappMode,
+    whatsappEnabled: settings.whatsappEnabled,
+    message,
+  });
+  const tgUrl = resolveTelegramUrl({
+    telegramHandle: settings.telegramHandle,
+    telegramLink: settings.telegramLink,
+    telegramMode: settings.telegramMode,
+    telegramEnabled: settings.telegramEnabled,
+    message,
+  });
+  const wcAction = resolveWeChatAction({
+    wechatId: settings.wechatId,
+    wechatLink: settings.wechatLink,
+    wechatQrUrl: settings.wechatQrUrl,
+    wechatMode: settings.wechatMode,
+    wechatEnabled: settings.wechatEnabled,
+  });
 
   const circleBase =
     'inline-flex h-12 w-12 items-center justify-center rounded-full shadow-[0_12px_28px_-6px_rgba(0,0,0,0.68)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--gold-bright)] transition-transform active:scale-95';
@@ -41,15 +56,28 @@ export function FloatingContactButtons() {
       className="fixed bottom-5 right-4 sm:bottom-6 sm:right-6 z-40 flex flex-col items-center gap-2.5"
     >
       {/* Top: WeChat */}
-      {wcConfigured ? (
+      {wcAction.active && wcAction.mode === 'link' && wcAction.url ? (
+        <a
+          href={wcAction.url}
+          target="_blank"
+          rel="noopener noreferrer"
+          aria-label="WeChat Support"
+          title="Connect with Colombo Tours on WeChat"
+          data-testid="floating-wechat-btn"
+          className={`${circleBase} ${secondaryEnabled} text-[#07C160]`}
+        >
+          <WeChatIcon className="h-5 w-5" />
+        </a>
+      ) : wcAction.active ? (
         <button
           type="button"
           onClick={() =>
             openWeChatEnquiry({
               message,
               subjectLabel: 'General Concierge Support',
-              wechatId: settings.wechatId,
-              wechatQrUrl: settings.wechatQrUrl,
+              wechatId: wcAction.wechatId,
+              wechatQrUrl: wcAction.wechatQrUrl,
+              wechatLink: wcAction.wechatLink,
             })
           }
           aria-label="WeChat Support"
@@ -64,8 +92,8 @@ export function FloatingContactButtons() {
           type="button"
           disabled
           aria-disabled="true"
-          aria-label="WeChat support is unavailable until a valid WeChat ID or QR code is configured in Admin."
-          title="WeChat support is unavailable until a valid WeChat ID or QR code is configured in Admin."
+          aria-label="WeChat support is unavailable until WeChat is enabled and configured in Admin."
+          title="WeChat support is unavailable until WeChat is enabled and configured in Admin."
           data-testid="floating-wechat-btn"
           className={`${circleBase} ${secondaryDisabled} text-[#07C160]/70`}
         >
@@ -91,8 +119,8 @@ export function FloatingContactButtons() {
           type="button"
           disabled
           aria-disabled="true"
-          aria-label="Telegram support is unavailable until a valid Telegram handle or number is configured in Admin."
-          title="Telegram support is unavailable until a valid Telegram handle or number is configured in Admin."
+          aria-label="Telegram support is unavailable until Telegram is enabled and configured in Admin."
+          title="Telegram support is unavailable until Telegram is enabled and configured in Admin."
           data-testid="floating-telegram-btn"
           className={`${circleBase} ${secondaryDisabled} text-[#2AABEE]/70`}
         >
@@ -118,8 +146,8 @@ export function FloatingContactButtons() {
           type="button"
           disabled
           aria-disabled="true"
-          aria-label="WhatsApp support is unavailable until a valid WhatsApp number is configured in Admin."
-          title="WhatsApp support is unavailable until a valid WhatsApp number is configured in Admin."
+          aria-label="WhatsApp support is unavailable until WhatsApp is enabled and configured in Admin."
+          title="WhatsApp support is unavailable until WhatsApp is enabled and configured in Admin."
           data-testid="floating-whatsapp-btn"
           className={`btn-gold ${circleBase} ring-1 ring-[#F3DC96]/30`}
         >

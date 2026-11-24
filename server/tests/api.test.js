@@ -135,22 +135,75 @@ describe('Colombo Tours API', () => {
       .send({ wechatQrUrl: 'javascript:alert(1)' });
     expect(badQr.status).toBe(400);
 
-    // Save valid WhatsApp, Telegram, and WeChat settings
+    // Reject phishing / non-allowlisted / non-HTTPS direct social links & invalid mode
+    const badWaLink = await agent
+      .put('/api/admin/settings')
+      .send({ whatsappLink: 'https://evil.example/message/123' });
+    expect(badWaLink.status).toBe(400);
+
+    const badTgLink = await agent
+      .put('/api/admin/settings')
+      .send({ telegramLink: 'http://t.me/COLOMBOTOURS' });
+    expect(badTgLink.status).toBe(400);
+
+    const badWcLink = await agent
+      .put('/api/admin/settings')
+      .send({ wechatLink: 'javascript:alert(1)' });
+    expect(badWcLink.status).toBe(400);
+
+    const badMode = await agent
+      .put('/api/admin/settings')
+      .send({ whatsappMode: 'sms' });
+    expect(badMode.status).toBe(400);
+
+    // Save valid WhatsApp, Telegram, and WeChat settings (both number/ID and official links)
     const goodWa = await agent
       .put('/api/admin/settings')
       .send({
         whatsappNumber: '+94 77 123 4567',
+        whatsappLink: 'https://wa.me/message/KSBZDVJTSEJYC1?src=qr',
+        whatsappMode: 'number',
+        whatsappEnabled: true,
         telegramHandle: 'https://t.me/ColomboTours',
+        telegramLink: 'https://t.me/COLOMBOTOURS',
+        telegramMode: 'handle',
+        telegramEnabled: true,
         wechatId: 'ColomboToursLK',
+        wechatLink: 'https://u.wechat.com/kHm8VCFbetF_uPu8roHEfig?s=2',
+        wechatMode: 'link',
+        wechatEnabled: true,
       });
     expect(goodWa.status).toBe(200);
     expect(goodWa.body.settings.whatsappNumber).toBe('94771234567');
+    expect(goodWa.body.settings.whatsappLink).toBe(
+      'https://wa.me/message/KSBZDVJTSEJYC1?src=qr'
+    );
     expect(goodWa.body.settings.whatsappConfigured).toBe(true);
     expect(goodWa.body.settings.telegramHandle).toBe('ColomboTours');
     expect(goodWa.body.settings.telegramDisplay).toBe('@ColomboTours');
     expect(goodWa.body.settings.telegramConfigured).toBe(true);
     expect(goodWa.body.settings.wechatId).toBe('ColomboToursLK');
+    expect(goodWa.body.settings.wechatLink).toBe(
+      'https://u.wechat.com/kHm8VCFbetF_uPu8roHEfig?s=2'
+    );
+    expect(goodWa.body.settings.wechatMode).toBe('link');
     expect(goodWa.body.settings.wechatConfigured).toBe(true);
+
+    // Unticking a channel disables it while keeping its saved value intact
+    const disableWc = await agent
+      .put('/api/admin/settings')
+      .send({ wechatEnabled: false });
+    expect(disableWc.status).toBe(200);
+    expect(disableWc.body.settings.wechatConfigured).toBe(false);
+    expect(disableWc.body.settings.wechatLink).toBe(
+      'https://u.wechat.com/kHm8VCFbetF_uPu8roHEfig?s=2'
+    );
+
+    const reEnableWc = await agent
+      .put('/api/admin/settings')
+      .send({ wechatEnabled: true });
+    expect(reEnableWc.status).toBe(200);
+    expect(reEnableWc.body.settings.wechatConfigured).toBe(true);
 
     // Verify public settings immediately reflect all 3 updated booking channels
     const pubSettings = await request(app).get('/api/settings');
@@ -282,8 +335,11 @@ describe('Colombo Tours API', () => {
     // Clear all booking channels -> disables all 3 across site and cleans up QR media
     const clearChannels = await agent.put('/api/admin/settings').send({
       whatsappNumber: '',
+      whatsappLink: '',
       telegramHandle: '',
+      telegramLink: '',
       wechatId: '',
+      wechatLink: '',
       wechatQrUrl: '',
     });
     expect(clearChannels.status).toBe(200);

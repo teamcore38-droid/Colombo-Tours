@@ -14,31 +14,60 @@ import { HomePage } from '../pages/HomePage';
 
 function createBootstrapPayload({
   whatsappNumber = '',
+  whatsappLink = '',
+  whatsappMode = 'number',
+  whatsappEnabled = true,
   telegramHandle = '',
+  telegramLink = '',
+  telegramMode = 'handle',
+  telegramEnabled = true,
   wechatId = '',
+  wechatLink = '',
+  wechatMode = 'id',
+  wechatEnabled = true,
   wechatQrUrl = '',
 } = {}) {
+  const whatsappConfigured =
+    whatsappEnabled &&
+    (whatsappMode === 'link' ? Boolean(whatsappLink) : Boolean(whatsappNumber));
+  const telegramConfigured =
+    telegramEnabled &&
+    (telegramMode === 'link' ? Boolean(telegramLink) : Boolean(telegramHandle));
+  const wechatConfigured =
+    wechatEnabled &&
+    (wechatMode === 'link'
+      ? Boolean(wechatLink)
+      : Boolean(wechatId || wechatQrUrl));
+
   return {
     settings: {
       companyName: 'Colombo Tours',
       tagline: 'Built Trust in Excellence',
       whatsappNumber,
       whatsappDisplay: whatsappNumber ? `+${whatsappNumber}` : '',
-      whatsappConfigured: Boolean(whatsappNumber),
+      whatsappLink,
+      whatsappMode,
+      whatsappEnabled,
+      whatsappConfigured,
       telegramHandle,
       telegramDisplay: telegramHandle
         ? telegramHandle.startsWith('+')
           ? telegramHandle
           : `@${telegramHandle}`
         : '',
-      telegramConfigured: Boolean(telegramHandle),
+      telegramLink,
+      telegramMode,
+      telegramEnabled,
+      telegramConfigured,
       wechatId,
       wechatDisplay: wechatId,
+      wechatLink,
+      wechatMode,
+      wechatEnabled,
       wechatQrUrl,
-      wechatConfigured: Boolean(wechatId || wechatQrUrl),
-      anyBookingChannelConfigured: Boolean(
-        whatsappNumber || telegramHandle || wechatId || wechatQrUrl
-      ),
+      wechatConfigured,
+      anyBookingChannelConfigured:
+        whatsappConfigured || telegramConfigured || wechatConfigured,
       heroHeadline: 'EXPERIENCE SRI LANKA IN UNRIVALED LUXURY',
       heroSubheadline: 'Premier Sri Lankan chauffeur fleet.',
       supportGreeting: 'Hello Colombo Tours, I’d like to enquire.',
@@ -457,5 +486,55 @@ describe('Colombo Tours Storefront UI', () => {
     expect(isValidLanguageCode('zh-CN')).toBe(true);
     expect(isValidLanguageCode('en; evil=1')).toBe(false);
     expect(isValidLanguageCode('<script>')).toBe(false);
+  });
+
+  it('supports Direct Link mode and channel enable toggles across WhatsApp, Telegram, and WeChat', async () => {
+    renderStorefront(
+      createBootstrapPayload({
+        whatsappLink: 'https://wa.me/message/KSBZDVJTSEJYC1?src=qr',
+        whatsappMode: 'link',
+        whatsappEnabled: true,
+        telegramLink: 'https://t.me/COLOMBOTOURS',
+        telegramMode: 'link',
+        telegramEnabled: true,
+        wechatLink: 'https://u.wechat.com/kHm8VCFbetF_uPu8roHEfig?s=2',
+        wechatMode: 'link',
+        wechatEnabled: true,
+      })
+    );
+
+    await waitFor(() =>
+      expect(screen.getByTestId('fleet-grid')).toBeInTheDocument()
+    );
+
+    const waCard = screen.getByTestId(
+      'vehicle-whatsapp-2024-mercedes-benz-s-class'
+    );
+    expect(waCard.tagName).toBe('A');
+    expect(waCard.getAttribute('href')).toBe(
+      'https://wa.me/message/KSBZDVJTSEJYC1?src=qr'
+    );
+
+    const tgCard = screen.getByTestId(
+      'vehicle-telegram-2024-mercedes-benz-s-class'
+    );
+    expect(tgCard.tagName).toBe('A');
+    expect(tgCard.getAttribute('href')).toContain(
+      'https://t.me/COLOMBOTOURS?text='
+    );
+
+    const wcCard = screen.getByTestId(
+      'vehicle-wechat-2024-mercedes-benz-s-class'
+    );
+    expect(wcCard.tagName).toBe('A');
+    expect(wcCard.getAttribute('href')).toBe(
+      'https://u.wechat.com/kHm8VCFbetF_uPu8roHEfig?s=2'
+    );
+
+    const floatingWc = screen.getByTestId('floating-wechat-btn');
+    expect(floatingWc.tagName).toBe('A');
+    expect(floatingWc.getAttribute('href')).toBe(
+      'https://u.wechat.com/kHm8VCFbetF_uPu8roHEfig?s=2'
+    );
   });
 });

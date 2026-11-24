@@ -14,6 +14,9 @@ import {
   normalizeWeChatId,
   normalizeWhatsAppNumber,
   sanitizeSafeImageUrl,
+  sanitizeTelegramLink,
+  sanitizeWeChatLink,
+  sanitizeWhatsAppLink,
 } from '../utils/channels.js';
 
 const router = Router();
@@ -41,29 +44,57 @@ function setPublicEdgeCache(req, res) {
 
 export function serializeSettings(doc) {
   const digits = normalizeWhatsAppNumber(doc?.whatsappNumber || '');
-  const whatsappConfigured = isValidWhatsAppNumber(digits);
+  const whatsappNumberValid = isValidWhatsAppNumber(digits);
+  const whatsappLink = sanitizeWhatsAppLink(doc?.whatsappLink || '');
+  const whatsappMode = doc?.whatsappMode === 'link' ? 'link' : 'number';
+  const whatsappEnabled = doc?.whatsappEnabled !== false;
+  const whatsappConfigured =
+    whatsappEnabled &&
+    (whatsappMode === 'link' ? Boolean(whatsappLink) : whatsappNumberValid);
 
   const telegramHandle = normalizeTelegramHandle(doc?.telegramHandle || '');
-  const telegramConfigured = isValidTelegramHandle(telegramHandle);
+  const telegramHandleValid = isValidTelegramHandle(telegramHandle);
+  const telegramLink = sanitizeTelegramLink(doc?.telegramLink || '');
+  const telegramMode = doc?.telegramMode === 'link' ? 'link' : 'handle';
+  const telegramEnabled = doc?.telegramEnabled !== false;
+  const telegramConfigured =
+    telegramEnabled &&
+    (telegramMode === 'link' ? Boolean(telegramLink) : telegramHandleValid);
 
   const wechatId = normalizeWeChatId(doc?.wechatId || '');
   const wechatIdValid = isValidWeChatId(wechatId);
+  const wechatLink = sanitizeWeChatLink(doc?.wechatLink || '');
   const wechatQrUrl = sanitizeSafeImageUrl(doc?.wechatQrUrl || '');
-  const wechatConfigured = wechatIdValid || Boolean(wechatQrUrl);
+  const wechatMode = doc?.wechatMode === 'link' ? 'link' : 'id';
+  const wechatEnabled = doc?.wechatEnabled !== false;
+  const wechatConfigured =
+    wechatEnabled &&
+    (wechatMode === 'link'
+      ? Boolean(wechatLink)
+      : wechatIdValid || Boolean(wechatQrUrl));
 
   return {
     companyName: doc?.companyName || 'Colombo Tours',
     tagline: doc?.tagline || 'Built Trust in Excellence',
-    whatsappNumber: whatsappConfigured ? digits : '',
-    whatsappDisplay: whatsappConfigured ? formatWhatsAppDisplay(digits) : '',
+    whatsappNumber: whatsappNumberValid ? digits : '',
+    whatsappDisplay: whatsappNumberValid ? formatWhatsAppDisplay(digits) : '',
+    whatsappLink,
+    whatsappMode,
+    whatsappEnabled,
     whatsappConfigured,
-    telegramHandle: telegramConfigured ? telegramHandle : '',
-    telegramDisplay: telegramConfigured
+    telegramHandle: telegramHandleValid ? telegramHandle : '',
+    telegramDisplay: telegramHandleValid
       ? formatTelegramDisplay(telegramHandle)
       : '',
+    telegramLink,
+    telegramMode,
+    telegramEnabled,
     telegramConfigured,
     wechatId: wechatIdValid ? wechatId : '',
     wechatDisplay: wechatIdValid ? wechatId : '',
+    wechatLink,
+    wechatMode,
+    wechatEnabled,
     wechatQrUrl,
     wechatQrStorageProvider: wechatQrUrl ? doc?.wechatQrStorageProvider || '' : '',
     wechatQrMediaId: wechatQrUrl ? doc?.wechatQrMediaId || '' : '',

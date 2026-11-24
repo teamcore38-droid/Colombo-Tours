@@ -26,17 +26,62 @@ const siteSettingsSchema = new mongoose.Schema(
       trim: true,
       maxlength: 20,
     },
+    whatsappLink: {
+      type: String,
+      default: '',
+      trim: true,
+      maxlength: 500,
+    },
+    whatsappMode: {
+      type: String,
+      enum: ['number', 'link'],
+      default: 'number',
+    },
+    whatsappEnabled: {
+      type: Boolean,
+      default: true,
+    },
     telegramHandle: {
       type: String,
       default: '',
       trim: true,
       maxlength: 40,
     },
+    telegramLink: {
+      type: String,
+      default: '',
+      trim: true,
+      maxlength: 500,
+    },
+    telegramMode: {
+      type: String,
+      enum: ['handle', 'link'],
+      default: 'handle',
+    },
+    telegramEnabled: {
+      type: Boolean,
+      default: true,
+    },
     wechatId: {
       type: String,
       default: '',
       trim: true,
       maxlength: 40,
+    },
+    wechatLink: {
+      type: String,
+      default: '',
+      trim: true,
+      maxlength: 500,
+    },
+    wechatMode: {
+      type: String,
+      enum: ['id', 'link'],
+      default: 'id',
+    },
+    wechatEnabled: {
+      type: Boolean,
+      default: true,
     },
     wechatQrUrl: {
       type: String,
