@@ -99,7 +99,7 @@ describe('Colombo Tours API', () => {
     expect(listRes.status).toBe(200);
     const sampleSlug = listRes.body.vehicles[0].slug;
 
-    // Normal browser visitor gets an instant 302 redirect to /?vehicle=<slug>
+    // Normal browser visitor gets an instant 302 redirect to /vehicle/<slug>
     const humanRes = await request(app)
       .get(`/v/${sampleSlug}`)
       .set(
@@ -107,7 +107,7 @@ describe('Colombo Tours API', () => {
         'Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15'
       );
     expect(humanRes.status).toBe(302);
-    expect(humanRes.headers.location).toBe(`/?vehicle=${sampleSlug}`);
+    expect(humanRes.headers.location).toBe(`/vehicle/${sampleSlug}`);
     expect(humanRes.headers['cache-control']).toBe('no-store');
 
     // Malformed / XSS slug safely redirects to /

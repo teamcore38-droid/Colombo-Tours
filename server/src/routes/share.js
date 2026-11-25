@@ -126,7 +126,7 @@ export function createShareRouter({ skipDbMiddleware = false } = {}) {
         return res.redirect(302, '/');
       }
 
-      const targetPath = `/?vehicle=${encodeURIComponent(safeSlug)}`;
+      const targetPath = `/vehicle/${encodeURIComponent(safeSlug)}`;
 
       // Fast 0-DB redirect for real human visitors clicking the short vehicle link
       if (!isPreviewCrawler(req)) {

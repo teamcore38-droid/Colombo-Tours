@@ -11,7 +11,7 @@ export default defineConfig({
         target: 'http://localhost:5000',
         changeOrigin: true,
       },
-      '/v': {
+      '/v/': {
         target: 'http://localhost:5000',
         changeOrigin: true,
       },

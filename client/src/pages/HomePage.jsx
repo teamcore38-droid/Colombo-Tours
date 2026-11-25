@@ -1,6 +1,6 @@
 import { AlertCircle, CarFront, RotateCcw } from 'lucide-react';
-import { useCallback, useEffect, useMemo, useState } from 'react';
-import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
+import { useEffect, useMemo, useState } from 'react';
+import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { CategoryPills } from '../components/CategoryPills';
 import { BookingChannelGroup } from '../components/ChannelButtons';
 import { FloatingContactButtons } from '../components/FloatingContactButtons';
@@ -11,7 +11,6 @@ import { QuickEnquiryPanel } from '../components/QuickEnquiryPanel';
 import { SearchFilterBar } from '../components/SearchFilterBar';
 import { ServicesSection } from '../components/ServicesSection';
 import { VehicleCard } from '../components/VehicleCard';
-import { VehicleSpecsModal } from '../components/VehicleSpecsModal';
 import { WeChatEnquiryModal } from '../components/WeChatEnquiryModal';
 import { useSite } from '../context/SiteContext';
 import { sanitizeVehicleSlug } from '../lib/channels';
@@ -25,59 +24,36 @@ const INITIAL_FILTERS = {
 export function HomePage() {
   const { settings, categories, services, vehicles, loading, error, refreshSiteData } =
     useSite();
-  const params = useParams();
   const navigate = useNavigate();
-  const [searchParams, setSearchParams] = useSearchParams();
+  const location = useLocation();
+  const [searchParams] = useSearchParams();
 
   const [search, setSearch] = useState('');
   const [activeCategory, setActiveCategory] = useState('all');
   const [filters, setFilters] = useState(INITIAL_FILTERS);
-  const [specsVehicle, setSpecsVehicle] = useState(null);
   const [enquiryVehicleName, setEnquiryVehicleName] = useState('');
 
-  // Auto-open matching published vehicle when visiting /v/<slug> or /?vehicle=<slug>
+  // Backward-compatible redirect: legacy /?vehicle=<slug> links open the dedicated vehicle page
   const requestedVehicleSlug = sanitizeVehicleSlug(
-    params.slug || searchParams.get('vehicle') || ''
+    searchParams.get('vehicle') || ''
   );
 
   useEffect(() => {
-    if (!requestedVehicleSlug || !vehicles.length) return;
-    const match = vehicles.find((v) => v.slug === requestedVehicleSlug);
-    if (match) {
-      setSpecsVehicle((curr) => (curr?.slug === match.slug ? curr : match));
-    }
-  }, [requestedVehicleSlug, vehicles]);
+    if (!requestedVehicleSlug) return;
+    navigate(`/vehicle/${encodeURIComponent(requestedVehicleSlug)}`, {
+      replace: true,
+    });
+  }, [requestedVehicleSlug, navigate]);
 
-  const handleOpenSpecs = useCallback(
-    (vehicle) => {
-      setSpecsVehicle(vehicle);
-      if (vehicle?.slug) {
-        if (params.slug) {
-          navigate(`/?vehicle=${encodeURIComponent(vehicle.slug)}`, {
-            replace: true,
-          });
-          return;
-        }
-        const next = new URLSearchParams(searchParams);
-        next.set('vehicle', vehicle.slug);
-        setSearchParams(next, { replace: true });
-      }
-    },
-    [navigate, params.slug, searchParams, setSearchParams]
-  );
-
-  const handleCloseSpecs = useCallback(() => {
-    setSpecsVehicle(null);
-    if (params.slug) {
-      navigate('/', { replace: true });
-      return;
+  // Smooth-scroll to hash section when returning from a vehicle detail page (e.g., /#services)
+  useEffect(() => {
+    if (!location.hash) return;
+    const targetId = location.hash.slice(1);
+    const el = document.getElementById(targetId);
+    if (el) {
+      el.scrollIntoView({ behavior: 'smooth', block: 'start' });
     }
-    if (searchParams.has('vehicle')) {
-      const next = new URLSearchParams(searchParams);
-      next.delete('vehicle');
-      setSearchParams(next, { replace: true });
-    }
-  }, [navigate, params.slug, searchParams, setSearchParams]);
+  }, [location.hash]);
 
   const featuredVehicles = useMemo(() => {
     const featured = vehicles.filter((v) => v.isFeatured);
@@ -168,7 +144,6 @@ export function HomePage() {
           featuredVehicles={featuredVehicles}
           settings={settings}
           loading={loading}
-          onViewSpecs={handleOpenSpecs}
         />
 
         {/* Subtle client-review banner if no booking channel has been configured yet */}
@@ -356,7 +331,6 @@ export function HomePage() {
                     vehicle={vehicle}
                     whatsappNumber={settings.whatsappNumber}
                     eager={index < 2}
-                    onViewSpecs={handleOpenSpecs}
                     onSelectForEnquiry={handleSelectForEnquiry}
                   />
                 ))}
@@ -393,14 +367,6 @@ export function HomePage() {
 
       {/* WeChat Booking Concierge Modal */}
       <WeChatEnquiryModal />
-
-      {/* Vehicle Specifications Modal */}
-      <VehicleSpecsModal
-        vehicle={specsVehicle}
-        whatsappNumber={settings.whatsappNumber}
-        onClose={handleCloseSpecs}
-        onSelectForEnquiry={handleSelectForEnquiry}
-      />
     </div>
   );
 }

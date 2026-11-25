@@ -1,6 +1,10 @@
 import { ChevronLeft, ChevronRight, Sparkles } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { buildVehicleEnquiryMessage } from '../lib/channels';
+import { Link, useInRouterContext } from 'react-router-dom';
+import {
+  buildVehicleEnquiryMessage,
+  sanitizeVehicleSlug,
+} from '../lib/channels';
 import { BookingChannelGroup } from './ChannelButtons';
 import { VehiclePhoto } from './VehiclePhoto';
 
@@ -20,6 +24,7 @@ export function HeroBanner({
   onViewSpecs,
   autoPlayMs = 4500,
 }) {
+  const inRouter = useInRouterContext();
   const [activeIndex, setActiveIndex] = useState(0);
   const [paused, setPaused] = useState(false);
   const touchStartX = useRef(null);
@@ -27,6 +32,10 @@ export function HeroBanner({
   const slideCount = featuredVehicles.length;
   const safeIndex = slideCount > 0 ? activeIndex % slideCount : 0;
   const activeVehicle = featuredVehicles[safeIndex] || null;
+  const activeSafeSlug = sanitizeVehicleSlug(activeVehicle?.slug || '');
+  const activeVehiclePath = activeSafeSlug
+    ? `/vehicle/${encodeURIComponent(activeSafeSlug)}`
+    : '/';
 
   const enquiryMessage = activeVehicle
     ? buildVehicleEnquiryMessage(activeVehicle)
@@ -231,20 +240,37 @@ export function HeroBanner({
 
               {activeVehicle ? (
                 <div>
-                  <button
-                    type="button"
-                    onClick={() => onViewSpecs?.(activeVehicle)}
-                    data-testid="hero-view-specs-btn"
-                    className="rounded-full border border-[#D4AF37]/35 bg-white/5 px-4 py-2 text-xs sm:text-sm font-medium text-[#F6F3EC] hover:border-[#D4AF37]/70 hover:bg-[#D4AF37]/10 transition-colors cursor-pointer"
-                  >
-                    <span className="sm:hidden">View Specs</span>
-                    <span className="hidden sm:inline">
-                      View{' '}
-                      <span translate="no" className="notranslate">
-                        {activeVehicle.name}
+                  {inRouter && activeSafeSlug ? (
+                    <Link
+                      to={activeVehiclePath}
+                      state={{ fromFleet: true }}
+                      data-testid="hero-view-specs-btn"
+                      className="inline-flex items-center justify-center rounded-full border border-[#D4AF37]/35 bg-white/5 px-4 py-2 text-xs sm:text-sm font-medium text-[#F6F3EC] hover:border-[#D4AF37]/70 hover:bg-[#D4AF37]/10 transition-colors cursor-pointer"
+                    >
+                      <span className="sm:hidden">View Specs</span>
+                      <span className="hidden sm:inline">
+                        View{' '}
+                        <span translate="no" className="notranslate">
+                          {activeVehicle.name}
+                        </span>
                       </span>
-                    </span>
-                  </button>
+                    </Link>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => onViewSpecs?.(activeVehicle)}
+                      data-testid="hero-view-specs-btn"
+                      className="rounded-full border border-[#D4AF37]/35 bg-white/5 px-4 py-2 text-xs sm:text-sm font-medium text-[#F6F3EC] hover:border-[#D4AF37]/70 hover:bg-[#D4AF37]/10 transition-colors cursor-pointer"
+                    >
+                      <span className="sm:hidden">View Specs</span>
+                      <span className="hidden sm:inline">
+                        View{' '}
+                        <span translate="no" className="notranslate">
+                          {activeVehicle.name}
+                        </span>
+                      </span>
+                    </button>
+                  )}
                 </div>
               ) : null}
             </div>

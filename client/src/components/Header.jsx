@@ -44,24 +44,24 @@ export function Header() {
             aria-label="Primary"
             className="hidden lg:flex items-center gap-7 text-sm font-medium text-[var(--text-secondary)]"
           >
-            <a
-              href="#fleet"
+            <Link
+              to="/#fleet"
               className="hover:text-[var(--gold-accent)] transition-colors"
             >
               Premium Fleet
-            </a>
-            <a
-              href="#services"
+            </Link>
+            <Link
+              to="/#services"
               className="hover:text-[var(--gold-accent)] transition-colors"
             >
               Services
-            </a>
-            <a
-              href="#quick-enquiry"
+            </Link>
+            <Link
+              to="/#quick-enquiry"
               className="hover:text-[var(--gold-accent)] transition-colors"
             >
               Quick Enquiry
-            </a>
+            </Link>
             <Link
               to="/admin"
               className="inline-flex items-center gap-1.5 hover:text-[var(--gold-accent)] transition-colors"
@@ -171,27 +171,27 @@ export function Header() {
             </div>
 
             <nav className="mt-5 flex flex-col gap-1.5 text-sm font-medium">
-              <a
-                href="#fleet"
+              <Link
+                to="/#fleet"
                 onClick={() => setDrawerOpen(false)}
                 className="rounded-xl px-3.5 py-2.5 text-[var(--text-primary)] hover:bg-[var(--gold-soft-bg)] hover:text-[var(--gold-accent)]"
               >
                 Browse Fleet
-              </a>
-              <a
-                href="#quick-enquiry"
+              </Link>
+              <Link
+                to="/#quick-enquiry"
                 onClick={() => setDrawerOpen(false)}
                 className="rounded-xl px-3.5 py-2.5 text-[var(--text-primary)] hover:bg-[var(--gold-soft-bg)] hover:text-[var(--gold-accent)]"
               >
                 Quick Enquiry
-              </a>
-              <a
-                href="#services"
+              </Link>
+              <Link
+                to="/#services"
                 onClick={() => setDrawerOpen(false)}
                 className="rounded-xl px-3.5 py-2.5 text-[var(--text-primary)] hover:bg-[var(--gold-soft-bg)] hover:text-[var(--gold-accent)]"
               >
                 Chauffeur &amp; Wedding Services
-              </a>
+              </Link>
               <Link
                 to="/admin"
                 onClick={() => setDrawerOpen(false)}

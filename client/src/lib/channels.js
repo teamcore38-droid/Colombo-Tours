@@ -316,7 +316,9 @@ export function parseSafeVehicleLinkLine(line) {
     return null;
   }
 
-  const shortMatch = parsed.pathname.match(/^\/v\/([a-z0-9]+(?:-[a-z0-9]+)*)$/i);
+  const shortMatch = parsed.pathname.match(
+    /^\/(?:v|vehicle)\/([a-z0-9]+(?:-[a-z0-9]+)*)$/i
+  );
   const querySlug = sanitizeVehicleSlug(parsed.searchParams.get('vehicle') || '');
   const safeSlug = shortMatch
     ? sanitizeVehicleSlug(shortMatch[1])

@@ -6,7 +6,11 @@ import {
   UserCheck,
   Users,
 } from 'lucide-react';
-import { buildVehicleEnquiryMessage } from '../lib/channels';
+import { Link } from 'react-router-dom';
+import {
+  buildVehicleEnquiryMessage,
+  sanitizeVehicleSlug,
+} from '../lib/channels';
 import { BookingChannelGroup } from './ChannelButtons';
 import { VehiclePhoto } from './VehiclePhoto';
 
@@ -14,9 +18,10 @@ export function VehicleCard({
   vehicle,
   whatsappNumber,
   eager = false,
-  onViewSpecs,
   onSelectForEnquiry,
 }) {
+  const safeSlug = sanitizeVehicleSlug(vehicle.slug || '');
+  const vehiclePath = safeSlug ? `/vehicle/${encodeURIComponent(safeSlug)}` : '/';
   const primaryPhoto =
     vehicle.photos?.find((p) => p.isPrimary) || vehicle.photos?.[0] || null;
   const specs = vehicle.specs || {};
@@ -63,24 +68,32 @@ export function VehicleCard({
       data-testid={`vehicle-card-${vehicle.slug}`}
       className="card-luxury group flex flex-col overflow-hidden rounded-2xl"
     >
-      {/* Vehicle studio photo stage */}
+      {/* Vehicle studio photo stage (clickable to open dedicated vehicle page) */}
       <div className="relative aspect-[16/10] w-full overflow-hidden bg-[#121216]">
-        <VehiclePhoto
-          src={primaryPhoto?.url}
-          alt={primaryPhoto?.alt || vehicle.name}
-          eager={eager}
-          className="h-full w-full object-cover object-center transition-transform duration-300 group-hover:scale-[1.03]"
-        />
-        <div
-          aria-hidden="true"
-          className="pointer-events-none absolute inset-x-0 bottom-0 h-16 bg-gradient-to-t from-black/75 via-black/25 to-transparent"
-        />
+        <Link
+          to={vehiclePath}
+          state={{ fromFleet: true }}
+          aria-label={`View specifications for ${vehicle.name}`}
+          data-testid={`vehicle-photo-link-${vehicle.slug}`}
+          className="block h-full w-full focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-[var(--gold-bright)]"
+        >
+          <VehiclePhoto
+            src={primaryPhoto?.url}
+            alt={primaryPhoto?.alt || vehicle.name}
+            eager={eager}
+            className="h-full w-full object-cover object-center transition-transform duration-300 group-hover:scale-[1.03]"
+          />
+          <div
+            aria-hidden="true"
+            className="pointer-events-none absolute inset-x-0 bottom-0 h-16 bg-gradient-to-t from-black/75 via-black/25 to-transparent"
+          />
 
-        {vehicle.isFeatured ? (
-          <span className="absolute left-3 top-3 rounded-full border border-[#D4AF37]/45 bg-black/70 px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-[#E8CB7D] backdrop-blur-xs">
-            Featured
-          </span>
-        ) : null}
+          {vehicle.isFeatured ? (
+            <span className="absolute left-3 top-3 rounded-full border border-[#D4AF37]/45 bg-black/70 px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-[#E8CB7D] backdrop-blur-xs">
+              Featured
+            </span>
+          ) : null}
+        </Link>
 
         {onSelectForEnquiry ? (
           <button
@@ -88,7 +101,7 @@ export function VehicleCard({
             onClick={() => onSelectForEnquiry(vehicle)}
             title={`Select ${vehicle.name} in Quick Enquiry`}
             aria-label={`Select ${vehicle.name} in Quick Enquiry`}
-            className="absolute right-3 top-3 flex h-8 w-8 items-center justify-center rounded-full border border-white/15 bg-black/55 text-[#E5DFD2] backdrop-blur-xs transition-colors hover:border-[#D4AF37]/60 hover:text-[#E8CB7D] cursor-pointer"
+            className="absolute right-3 top-3 z-10 flex h-8 w-8 items-center justify-center rounded-full border border-white/15 bg-black/55 text-[#E5DFD2] backdrop-blur-xs transition-colors hover:border-[#D4AF37]/60 hover:text-[#E8CB7D] cursor-pointer"
           >
             <Send className="h-3.5 w-3.5" />
           </button>
@@ -98,20 +111,26 @@ export function VehicleCard({
       {/* Card body */}
       <div className="flex flex-1 flex-col p-4 sm:p-4.5">
         <div className="mb-3">
-          <h3
-            translate="no"
-            className="notranslate text-[1.05rem] sm:text-lg font-semibold leading-snug text-[var(--text-primary)]"
+          <Link
+            to={vehiclePath}
+            state={{ fromFleet: true }}
+            className="block focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--gold-bright)] rounded-md"
           >
-            {vehicle.name}
-          </h3>
-          {vehicle.model && vehicle.model !== vehicle.name ? (
-            <p
+            <h3
               translate="no"
-              className="notranslate mt-0.5 text-xs text-[var(--text-muted)] line-clamp-1"
+              className="notranslate text-[1.05rem] sm:text-lg font-semibold leading-snug text-[var(--text-primary)] transition-colors group-hover:text-[var(--gold-accent)]"
             >
-              {vehicle.model}
-            </p>
-          ) : null}
+              {vehicle.name}
+            </h3>
+            {vehicle.model && vehicle.model !== vehicle.name ? (
+              <p
+                translate="no"
+                className="notranslate mt-0.5 text-xs text-[var(--text-muted)] line-clamp-1"
+              >
+                {vehicle.model}
+              </p>
+            ) : null}
+          </Link>
         </div>
 
         {/* Compact spec pills matching reference */}
@@ -145,14 +164,14 @@ export function VehicleCard({
             wechatTestId={`vehicle-wechat-${vehicle.slug}`}
           />
 
-          <button
-            type="button"
-            onClick={() => onViewSpecs?.(vehicle)}
+          <Link
+            to={vehiclePath}
+            state={{ fromFleet: true }}
             data-testid={`vehicle-specs-${vehicle.slug}`}
-            className="w-full rounded-full border border-[var(--border-gold)] bg-[var(--bg-pill)] px-4 py-2 text-xs sm:text-sm font-medium text-[var(--text-primary)] transition-colors hover:border-[var(--border-gold-strong)] hover:bg-[var(--gold-soft-bg)] cursor-pointer"
+            className="inline-flex w-full items-center justify-center rounded-full border border-[var(--border-gold)] bg-[var(--bg-pill)] px-4 py-2 text-xs sm:text-sm font-medium text-[var(--text-primary)] transition-colors hover:border-[var(--border-gold-strong)] hover:bg-[var(--gold-soft-bg)] cursor-pointer"
           >
             View Specs
-          </button>
+          </Link>
         </div>
       </div>
     </article>

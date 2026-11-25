@@ -11,6 +11,7 @@ import {
 import { SiteProvider } from '../context/SiteContext';
 import { ThemeProvider } from '../context/ThemeContext';
 import { HomePage } from '../pages/HomePage';
+import { VehicleDetailPage } from '../pages/VehicleDetailPage';
 
 function createBootstrapPayload({
   whatsappNumber = '',
@@ -158,7 +159,8 @@ function renderStorefront(payload, { initialEntries = ['/'] } = {}) {
           <MemoryRouter initialEntries={initialEntries}>
             <Routes>
               <Route path="/" element={<HomePage />} />
-              <Route path="/v/:slug" element={<HomePage />} />
+              <Route path="/vehicle/:slug" element={<VehicleDetailPage />} />
+              <Route path="/v/:slug" element={<VehicleDetailPage />} />
             </Routes>
           </MemoryRouter>
         </SiteProvider>
@@ -352,9 +354,15 @@ describe('Colombo Tours Storefront UI', () => {
     expect(screen.getByTestId('quick-enquiry-wechat-btn')).toBeDisabled();
   });
 
-  it('supports search, category filtering, empty state recovery, missing photo fallback, and specs modal', async () => {
+  it('supports search, category filtering, empty state recovery, missing photo fallback, and dedicated vehicle detail page with back button', async () => {
     const user = userEvent.setup();
-    renderStorefront(createBootstrapPayload({ whatsappNumber: '94771234567' }));
+    renderStorefront(
+      createBootstrapPayload({
+        whatsappNumber: '94771234567',
+        telegramHandle: 'ColomboTours',
+        wechatId: 'ColomboToursLK',
+      })
+    );
 
     await waitFor(() =>
       expect(screen.getByTestId('fleet-grid')).toBeInTheDocument()
@@ -363,16 +371,65 @@ describe('Colombo Tours Storefront UI', () => {
     // Missing photo fallback shown for Defender
     expect(screen.getByTestId('missing-photo-fallback')).toBeInTheDocument();
 
-    // Open Vehicle Specs modal
+    // Clicking View Specs navigates to dedicated VehicleDetailPage (not a popup modal)
     await user.click(
       screen.getByTestId('vehicle-specs-2024-mercedes-benz-s-class')
     );
-    const modal = screen.getByTestId('vehicle-specs-modal');
-    expect(modal).toBeInTheDocument();
-    expect(within(modal).getByText('3 Suitcases')).toBeInTheDocument();
-    expect(within(modal).getByText('Uniformed Chauffeur')).toBeInTheDocument();
-    await user.click(screen.getByTestId('close-specs-modal'));
+    const detailPage = await screen.findByTestId('vehicle-detail-page');
+    expect(detailPage).toBeInTheDocument();
     expect(screen.queryByTestId('vehicle-specs-modal')).not.toBeInTheDocument();
+    expect(screen.getByTestId('vehicle-detail-title')).toHaveTextContent(
+      '2024 Mercedes-Benz S-Class'
+    );
+    expect(within(detailPage).getByText('3 Suitcases')).toBeInTheDocument();
+    expect(
+      within(detailPage).getByText('Uniformed Chauffeur')
+    ).toBeInTheDocument();
+
+    // Booking button on detail page includes vehicle specs and /v/<slug> link
+    const detailWa = screen.getByTestId('detail-whatsapp-btn');
+    expect(decodeURIComponent(detailWa.getAttribute('href'))).toContain(
+      '/v/2024-mercedes-benz-s-class'
+    );
+
+    // Optional trip dates & pickup location work and validate dates safely
+    await user.click(screen.getByTestId('detail-toggle-dates-btn'));
+    await user.type(
+      screen.getByTestId('detail-pickup-location'),
+      'Galle Face Hotel'
+    );
+    await user.type(screen.getByTestId('detail-pickup-date'), '2099-06-10');
+    await user.type(screen.getByTestId('detail-return-date'), '2099-06-12');
+    expect(
+      decodeURIComponent(
+        screen.getByTestId('detail-whatsapp-btn').getAttribute('href')
+      )
+    ).toContain('Pickup location: Galle Face Hotel');
+
+    await user.clear(screen.getByTestId('detail-return-date'));
+    await user.type(screen.getByTestId('detail-return-date'), '2099-06-05');
+    expect(screen.getByTestId('detail-date-error')).toHaveTextContent(
+      /earlier than the pickup date/i
+    );
+    expect(screen.getByTestId('detail-whatsapp-btn')).toBeDisabled();
+
+    // Clicking Back to Fleet returns cleanly to storefront fleet grid
+    await user.click(screen.getByTestId('vehicle-back-btn'));
+    await waitFor(() =>
+      expect(screen.getByTestId('fleet-grid')).toBeInTheDocument()
+    );
+
+    // Clicking the vehicle photo also opens the dedicated vehicle detail page
+    await user.click(
+      screen.getByTestId('vehicle-photo-link-land-rover-defender-110')
+    );
+    expect(await screen.findByTestId('vehicle-detail-title')).toHaveTextContent(
+      'Land Rover Defender 110'
+    );
+    await user.click(screen.getByTestId('vehicle-back-btn'));
+    await waitFor(() =>
+      expect(screen.getByTestId('fleet-grid')).toBeInTheDocument()
+    );
 
     // Category filter
     await user.click(screen.getByTestId('category-pill-suv'));
@@ -504,7 +561,7 @@ describe('Colombo Tours Storefront UI', () => {
     expect(isValidLanguageCode('<script>')).toBe(false);
   });
 
-  it('supports Direct Link mode, carries vehicle details into WeChat link modal, and opens /v/<slug> deep links safely', async () => {
+  it('supports Direct Link mode, carries vehicle details into WeChat link modal, and opens /v/<slug> & /?vehicle=<slug> on the dedicated vehicle page', async () => {
     const user = userEvent.setup();
     renderStorefront(
       createBootstrapPayload({
@@ -521,15 +578,14 @@ describe('Colombo Tours Storefront UI', () => {
       { initialEntries: ['/v/land-rover-defender-110'] }
     );
 
+    // Direct short link /v/land-rover-defender-110 renders dedicated VehicleDetailPage
+    expect(await screen.findByTestId('vehicle-detail-title')).toHaveTextContent(
+      'Land Rover Defender 110'
+    );
+    await user.click(screen.getByTestId('vehicle-back-btn'));
     await waitFor(() =>
       expect(screen.getByTestId('fleet-grid')).toBeInTheDocument()
     );
-
-    // Short deep link /v/land-rover-defender-110 automatically opens Defender specs modal
-    const specsModal = await screen.findByTestId('vehicle-specs-modal');
-    expect(within(specsModal).getByText('Land Rover Defender 110')).toBeInTheDocument();
-    await user.click(screen.getByTestId('close-specs-modal'));
-    expect(screen.queryByTestId('vehicle-specs-modal')).not.toBeInTheDocument();
 
     const waCard = screen.getByTestId(
       'vehicle-whatsapp-2024-mercedes-benz-s-class'
@@ -570,5 +626,24 @@ describe('Colombo Tours Storefront UI', () => {
     expect(floatingWc.getAttribute('href')).toBe(
       'https://u.wechat.com/kHm8VCFbetF_uPu8roHEfig?s=2'
     );
+  });
+
+  it('handles legacy /?vehicle=<slug> redirects and shows clean Vehicle Not Found state for invalid slugs', async () => {
+    const { unmount } = renderStorefront(
+      createBootstrapPayload({ whatsappNumber: '94771234567' }),
+      { initialEntries: ['/?vehicle=2024-mercedes-benz-s-class'] }
+    );
+
+    expect(await screen.findByTestId('vehicle-detail-title')).toHaveTextContent(
+      '2024 Mercedes-Benz S-Class'
+    );
+    unmount();
+
+    renderStorefront(
+      createBootstrapPayload({ whatsappNumber: '94771234567' }),
+      { initialEntries: ['/vehicle/%3Cscript%3Ealert(1)%3C%2Fscript%3E'] }
+    );
+
+    expect(await screen.findByTestId('vehicle-not-found')).toBeInTheDocument();
   });
 });

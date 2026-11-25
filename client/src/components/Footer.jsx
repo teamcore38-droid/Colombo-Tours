@@ -36,24 +36,24 @@ export function Footer() {
             />
 
             <div className="flex flex-wrap items-center justify-center gap-4 text-xs text-[var(--text-muted)]">
-              <a
-                href="#fleet"
+              <Link
+                to="/#fleet"
                 className="hover:text-[var(--gold-accent)] transition-colors"
               >
                 Fleet
-              </a>
-              <a
-                href="#services"
+              </Link>
+              <Link
+                to="/#services"
                 className="hover:text-[var(--gold-accent)] transition-colors"
               >
                 Services
-              </a>
-              <a
-                href="#quick-enquiry"
+              </Link>
+              <Link
+                to="/#quick-enquiry"
                 className="hover:text-[var(--gold-accent)] transition-colors"
               >
                 Quick Enquiry
-              </a>
+              </Link>
               <Link
                 to="/admin"
                 className="inline-flex items-center gap-1 hover:text-[var(--gold-accent)] transition-colors"

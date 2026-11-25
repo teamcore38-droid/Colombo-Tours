@@ -4,6 +4,7 @@ import { LanguageProvider } from './context/LanguageContext';
 import { SiteProvider } from './context/SiteContext';
 import { ThemeProvider } from './context/ThemeContext';
 import { HomePage } from './pages/HomePage';
+import { VehicleDetailPage } from './pages/VehicleDetailPage';
 
 // Lazy-load admin bundle so public mobile visitors download zero admin JS
 const AdminLoginPage = lazy(() =>
@@ -32,7 +33,8 @@ export function App() {
             <Suspense fallback={<RouteFallback />}>
               <Routes>
                 <Route path="/" element={<HomePage />} />
-                <Route path="/v/:slug" element={<HomePage />} />
+                <Route path="/vehicle/:slug" element={<VehicleDetailPage />} />
+                <Route path="/v/:slug" element={<VehicleDetailPage />} />
                 <Route path="/admin/login" element={<AdminLoginPage />} />
                 <Route path="/admin" element={<AdminDashboardPage />} />
                 <Route path="*" element={<Navigate to="/" replace />} />
