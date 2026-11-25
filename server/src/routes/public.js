@@ -1,5 +1,8 @@
 import { Router } from 'express';
+import rateLimit from 'express-rate-limit';
 import mongoose from 'mongoose';
+import { env } from '../config/env.js';
+import { hasValidAdminToken } from '../middleware/auth.js';
 import { Category } from '../models/Category.js';
 import { Service } from '../models/Service.js';
 import { SiteSettings } from '../models/SiteSettings.js';
@@ -21,18 +24,36 @@ import {
 
 const router = Router();
 
+const MAX_PUBLIC_VEHICLES = 200;
+const MAX_PUBLIC_CATEGORIES = 100;
+const MAX_PUBLIC_SERVICES = 100;
+
+const publicApiLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  limit: env.isTest ? 10000 : 120,
+  standardHeaders: 'draft-7',
+  legacyHeaders: false,
+  message: {
+    error: 'Too many requests right now. Please wait a moment and try again.',
+  },
+});
+
+router.use(publicApiLimiter);
+
 function escapeRegex(value) {
   return String(value).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
 /**
  * Cache public read endpoints at Vercel's Edge PoP for 60s and serve stale for up to 10m
- * while revalidating in the background. Skip edge caching only when explicitly requested
- * via ?fresh=1 (used right after an admin edit in the same browser).
+ * while revalidating in the background.
+ * Only honor ?fresh=1 cache bypass when the request carries a valid staff admin JWT
+ * so public callers or bots cannot bypass the Edge CDN and hammer MongoDB.
  */
 function setPublicEdgeCache(req, res) {
-  if (req.query?.fresh === '1') {
-    res.set('Cache-Control', 'no-store');
+  if (req.query?.fresh === '1' && hasValidAdminToken(req)) {
+    res.set('Cache-Control', 'no-store, private');
+    res.set('CDN-Cache-Control', 'no-store');
     return;
   }
   res.set('Cache-Control', 'public, max-age=0, must-revalidate');
@@ -122,13 +143,16 @@ router.get('/bootstrap', async (req, res, next) => {
       SiteSettings.findOne({ key: 'global' }).lean(),
       Category.find({ isActive: true })
         .sort({ sortOrder: 1, name: 1 })
+        .limit(MAX_PUBLIC_CATEGORIES)
         .lean(),
       Service.find({ isActive: true })
         .sort({ sortOrder: 1, name: 1 })
+        .limit(MAX_PUBLIC_SERVICES)
         .lean(),
       Vehicle.find({ isPublished: true })
         .populate('categories', 'name slug sortOrder isActive')
         .sort({ sortOrder: 1, createdAt: -1 })
+        .limit(MAX_PUBLIC_VEHICLES)
         .lean(),
     ]);
 
@@ -158,6 +182,7 @@ router.get('/categories', async (req, res, next) => {
   try {
     const categories = await Category.find({ isActive: true })
       .sort({ sortOrder: 1, name: 1 })
+      .limit(MAX_PUBLIC_CATEGORIES)
       .lean();
     setPublicEdgeCache(req, res);
     return res.json({ categories });
@@ -170,6 +195,7 @@ router.get('/services', async (req, res, next) => {
   try {
     const services = await Service.find({ isActive: true })
       .sort({ sortOrder: 1, name: 1 })
+      .limit(MAX_PUBLIC_SERVICES)
       .lean();
     setPublicEdgeCache(req, res);
     return res.json({ services });
@@ -191,7 +217,7 @@ router.get('/vehicles', async (req, res, next) => {
 
     const filter = { isPublished: true };
 
-    const trimmedSearch = String(search).trim();
+    const trimmedSearch = String(search).trim().slice(0, 80);
     if (trimmedSearch) {
       const rx = new RegExp(escapeRegex(trimmedSearch), 'i');
       filter.$or = [
@@ -250,6 +276,7 @@ router.get('/vehicles', async (req, res, next) => {
     const vehicles = await Vehicle.find(filter)
       .populate('categories', 'name slug sortOrder isActive')
       .sort({ sortOrder: 1, createdAt: -1 })
+      .limit(MAX_PUBLIC_VEHICLES)
       .lean();
 
     setPublicEdgeCache(req, res);

@@ -1,4 +1,5 @@
 import { MongoMemoryServer } from 'mongodb-memory-server';
+import mongoose from 'mongoose';
 import request from 'supertest';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { createApp } from '../src/app.js';
@@ -30,13 +31,32 @@ afterAll(async () => {
 });
 
 describe('Colombo Tours API', () => {
-  it('returns health status', async () => {
+  it('returns DB-aware health status with no-store header and 503 when DB ping fails', async () => {
     const res = await request(app).get('/api/health');
     expect(res.status).toBe(200);
+    expect(res.headers['cache-control']).toBe('no-store');
     expect(res.body.status).toBe('ok');
+    expect(res.body.database).toBe('connected');
+    expect(typeof res.body.dbLatencyMs).toBe('number');
+
+    const adminSpy = vi
+      .spyOn(mongoose.connection.db, 'admin')
+      .mockReturnValue({
+        command: vi.fn().mockRejectedValue(new Error('Simulated DB outage')),
+      });
+    try {
+      const degraded = await request(app).get('/api/health');
+      expect(degraded.status).toBe(503);
+      expect(degraded.headers['cache-control']).toBe('no-store');
+      expect(degraded.body.status).toBe('degraded');
+      expect(degraded.body.database).toBe('disconnected');
+      expect(JSON.stringify(degraded.body)).not.toContain('Simulated DB outage');
+    } finally {
+      adminSpy.mockRestore();
+    }
   });
 
-  it('bootstraps with seeded Sri Lankan fleet and disabled WhatsApp by default', async () => {
+  it('bootstraps with seeded Sri Lankan fleet and guards ?fresh=1 edge bypass for admin only', async () => {
     const res = await request(app).get('/api/bootstrap');
     expect(res.status).toBe(200);
     expect(res.headers['cdn-cache-control']).toContain('s-maxage=60');
@@ -56,9 +76,11 @@ describe('Colombo Tours API', () => {
       expect.arrayContaining(['luxury', 'suv', 'wedding', 'chauffeur'])
     );
 
-    const freshRes = await request(app).get('/api/bootstrap?fresh=1');
-    expect(freshRes.status).toBe(200);
-    expect(freshRes.headers['cache-control']).toBe('no-store');
+    // Public unauthenticated caller CANNOT bypass Vercel Edge CDN via ?fresh=1
+    const publicFreshRes = await request(app).get('/api/bootstrap?fresh=1');
+    expect(publicFreshRes.status).toBe(200);
+    expect(publicFreshRes.headers['cdn-cache-control']).toContain('s-maxage=60');
+    expect(publicFreshRes.headers['cache-control']).not.toBe('no-store');
   });
 
   it('filters and searches public vehicles and handles empty results cleanly', async () => {
@@ -88,12 +110,16 @@ describe('Colombo Tours API', () => {
       .post('/api/admin/settings/verify-telegram')
       .send({ handle: '@ColomboTours' });
     const r5 = await request(app).get('/api/admin/bootstrap');
+    const r6 = await request(app).get('/api/admin/backup');
+    const r7 = await request(app).post('/api/admin/restore').send({});
 
     expect(r1.status).toBe(401);
     expect(r2.status).toBe(401);
     expect(r3.status).toBe(401);
     expect(r4.status).toBe(401);
     expect(r5.status).toBe(401);
+    expect(r6.status).toBe(401);
+    expect(r7.status).toBe(401);
     expect(r5.headers['x-robots-tag']).toContain('noindex');
     expect(r5.headers['cache-control']).toContain('no-store');
   });
@@ -538,5 +564,130 @@ describe('Colombo Tours API', () => {
     expect(clearChannels.body.settings.wechatConfigured).toBe(false);
     const qrAfterClear = await Media.findById(qrPhoto.mediaId);
     expect(qrAfterClear).toBeNull();
+  });
+
+  it('exports sanitized backup snapshots (excluding admin credentials), validates bad inputs, and restores cleanly in merge & replace modes', async () => {
+    const agent = request.agent(app);
+    const loginRes = await agent.post('/api/auth/login').send({
+      email: 'admin@colombotours.lk',
+      password: 'ChangeMe123!',
+    });
+    expect(loginRes.status).toBe(200);
+
+    // Authenticated admin CAN bypass edge cache via ?fresh=1
+    const adminFresh = await agent.get('/api/bootstrap?fresh=1');
+    expect(adminFresh.status).toBe(200);
+    expect(adminFresh.headers['cache-control']).toContain('no-store');
+    expect(adminFresh.headers['cdn-cache-control']).toBe('no-store');
+
+    // 1. Export snapshot
+    const backupRes = await agent.get('/api/admin/backup');
+    expect(backupRes.status).toBe(200);
+    expect(backupRes.headers['content-disposition']).toMatch(
+      /attachment; filename="colombo-tours-backup-\d{4}-\d{2}-\d{2}\.json"/
+    );
+    expect(backupRes.headers['cache-control']).toContain('no-store');
+    expect(backupRes.headers['x-robots-tag']).toContain('noindex');
+
+    const snapshot = backupRes.body;
+    expect(snapshot.app).toBe('colombo-tours');
+    expect(snapshot.schemaVersion).toBe(1);
+    expect(snapshot.counts.vehicles).toBeGreaterThanOrEqual(5);
+    expect(snapshot.counts.categories).toBeGreaterThanOrEqual(4);
+    expect(snapshot.counts.services).toBeGreaterThanOrEqual(4);
+    // Security: NEVER export AdminUser records or password hashes
+    expect(JSON.stringify(snapshot)).not.toContain('passwordHash');
+    expect(snapshot.data.admins).toBeUndefined();
+
+    // 2. Reject invalid / tampered backup payloads before touching DB
+    const badApp = await agent.post('/api/admin/restore').send({
+      mode: 'replace',
+      backup: { app: 'other-app', schemaVersion: 1, data: {} },
+    });
+    expect(badApp.status).toBe(400);
+
+    const badVersion = await agent.post('/api/admin/restore').send({
+      mode: 'replace',
+      backup: { app: 'colombo-tours', schemaVersion: 99, data: {} },
+    });
+    expect(badVersion.status).toBe(400);
+
+    const badMode = await agent.post('/api/admin/restore').send({
+      mode: 'drop-all',
+      backup: snapshot,
+    });
+    expect(badMode.status).toBe(400);
+
+    const nullBackup = await agent.post('/api/admin/restore').send({
+      mode: 'merge',
+      backup: null,
+    });
+    expect(nullBackup.status).toBe(400);
+
+    // 3. Mutate DB: delete one seeded vehicle, create an extra vehicle, change settings
+    const beforeVehicles = (await agent.get('/api/admin/vehicles')).body.vehicles;
+    const victim = beforeVehicles[0];
+    await agent.delete(`/api/admin/vehicles/${victim._id}`);
+
+    const tempCreate = await agent.post('/api/admin/vehicles').send({
+      name: '2026 Temporary Restore Test Car',
+      isPublished: true,
+    });
+    expect(tempCreate.status).toBe(201);
+    await agent.put('/api/admin/settings').send({
+      companyName: 'Temporary Altered Name',
+    });
+
+    // 4. Merge restore: brings back deleted seeded vehicle while keeping temporary car
+    const mergeRes = await agent.post('/api/admin/restore').send({
+      mode: 'merge',
+      backup: snapshot,
+    });
+    expect(mergeRes.status).toBe(200);
+    expect(mergeRes.body.ok).toBe(true);
+    expect(mergeRes.body.mode).toBe('merge');
+
+    const afterMerge = (await agent.get('/api/admin/vehicles')).body.vehicles;
+    expect(afterMerge.some((v) => v.slug === victim.slug)).toBe(true);
+    expect(
+      afterMerge.some((v) => v.slug === '2026-temporary-restore-test-car')
+    ).toBe(true);
+
+    // 5. Replace restore: restores exact snapshot (removes temporary car, preserves category links & admin account)
+    // Also verify unsafe javascript: photo URLs in tampered backups are stripped
+    const snapshotWithXssPhoto = structuredClone(snapshot);
+    snapshotWithXssPhoto.data.vehicles[0].photos.push({
+      url: 'javascript:alert(1)',
+      alt: 'bad',
+    });
+
+    const replaceRes = await agent.post('/api/admin/restore').send({
+      mode: 'replace',
+      backup: snapshotWithXssPhoto,
+    });
+    expect(replaceRes.status).toBe(200);
+    expect(replaceRes.body.ok).toBe(true);
+    expect(replaceRes.body.mode).toBe('replace');
+
+    const afterReplace = (await agent.get('/api/admin/vehicles')).body.vehicles;
+    expect(afterReplace.length).toBe(snapshot.counts.vehicles);
+    expect(
+      afterReplace.some((v) => v.slug === '2026-temporary-restore-test-car')
+    ).toBe(false);
+    const restoredVictim = afterReplace.find((v) => v.slug === victim.slug);
+    expect(restoredVictim).toBeTruthy();
+    expect(restoredVictim.categories.length).toBeGreaterThan(0);
+    expect(
+      afterReplace.every((v) =>
+        (v.photos || []).every((p) => !p.url.startsWith('javascript:'))
+      )
+    ).toBe(true);
+
+    // Settings restored & admin session still valid
+    const settingsAfter = (await agent.get('/api/admin/settings')).body.settings;
+    expect(settingsAfter.companyName).toBe(snapshot.data.settings.companyName);
+    const meAfter = await agent.get('/api/auth/me');
+    expect(meAfter.status).toBe(200);
+    expect(meAfter.body.admin.email).toBe('admin@colombotours.lk');
   });
 });

@@ -7,6 +7,8 @@
     "dev": "node --watch src/index.js",
     "start": "node src/index.js",
     "seed": "node src/utils/runSeed.js",
+    "backup": "node src/utils/backupCli.js export",
+    "restore": "node src/utils/backupCli.js restore",
     "test": "vitest run"
   },
   "dependencies": {

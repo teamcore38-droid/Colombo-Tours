@@ -12,6 +12,7 @@ export function VehiclePhoto({
   src,
   alt = 'Colombo Tours vehicle',
   eager = false,
+  priority = false,
   deliveryWidth = 960,
   className = 'h-full w-full object-cover',
 }) {
@@ -47,8 +48,8 @@ export function VehiclePhoto({
     <img
       src={resolvedSrc}
       alt={alt}
-      loading={eager ? 'eager' : 'lazy'}
-      fetchPriority={eager ? 'high' : 'auto'}
+      loading={eager || priority ? 'eager' : 'lazy'}
+      fetchPriority={priority ? 'high' : 'auto'}
       decoding="async"
       onError={() => setFailed(true)}
       className={className}

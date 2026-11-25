@@ -1,12 +1,17 @@
 import { lazy, Suspense } from 'react';
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
+import { ErrorBoundary } from './components/ErrorBoundary';
 import { LanguageProvider } from './context/LanguageContext';
 import { SiteProvider } from './context/SiteContext';
 import { ThemeProvider } from './context/ThemeContext';
 import { HomePage } from './pages/HomePage';
-import { VehicleDetailPage } from './pages/VehicleDetailPage';
 
-// Lazy-load admin bundle so public mobile visitors download zero admin JS
+// Lazy-load secondary & admin bundles so homepage mobile visitors download minimal initial JS
+const VehicleDetailPage = lazy(() =>
+  import('./pages/VehicleDetailPage').then((m) => ({
+    default: m.VehicleDetailPage,
+  }))
+);
 const AdminLoginPage = lazy(() =>
   import('./pages/AdminLoginPage').then((m) => ({ default: m.AdminLoginPage }))
 );
@@ -26,24 +31,26 @@ function RouteFallback() {
 
 export function App() {
   return (
-    <ThemeProvider>
-      <LanguageProvider>
-        <SiteProvider>
-          <BrowserRouter>
-            <Suspense fallback={<RouteFallback />}>
-              <Routes>
-                <Route path="/" element={<HomePage />} />
-                <Route path="/vehicle/:slug" element={<VehicleDetailPage />} />
-                <Route path="/v/:slug" element={<VehicleDetailPage />} />
-                <Route path="/admin/login" element={<AdminLoginPage />} />
-                <Route path="/admin" element={<AdminDashboardPage />} />
-                <Route path="*" element={<Navigate to="/" replace />} />
-              </Routes>
-            </Suspense>
-          </BrowserRouter>
-        </SiteProvider>
-      </LanguageProvider>
-    </ThemeProvider>
+    <ErrorBoundary>
+      <ThemeProvider>
+        <LanguageProvider>
+          <SiteProvider>
+            <BrowserRouter>
+              <Suspense fallback={<RouteFallback />}>
+                <Routes>
+                  <Route path="/" element={<HomePage />} />
+                  <Route path="/vehicle/:slug" element={<VehicleDetailPage />} />
+                  <Route path="/v/:slug" element={<VehicleDetailPage />} />
+                  <Route path="/admin/login" element={<AdminLoginPage />} />
+                  <Route path="/admin" element={<AdminDashboardPage />} />
+                  <Route path="*" element={<Navigate to="/" replace />} />
+                </Routes>
+              </Suspense>
+            </BrowserRouter>
+          </SiteProvider>
+        </LanguageProvider>
+      </ThemeProvider>
+    </ErrorBoundary>
   );
 }
 

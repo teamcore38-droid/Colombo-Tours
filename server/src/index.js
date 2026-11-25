@@ -25,6 +25,9 @@ async function start() {
 
     process.on('SIGTERM', () => shutdown('SIGTERM'));
     process.on('SIGINT', () => shutdown('SIGINT'));
+    process.on('unhandledRejection', (reason) => {
+      console.error('[Colombo Tours API] Unhandled rejection:', reason);
+    });
   } catch (error) {
     console.error('[Colombo Tours API] Startup error:', error);
     process.exit(1);

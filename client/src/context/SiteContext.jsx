@@ -82,10 +82,21 @@ export function SiteProvider({ children }) {
     setError('');
     try {
       const shouldBypassEdgeCache = fresh || hasRecentAdminEdit();
+      let freshQuery = 'fresh=1';
+      if (shouldBypassEdgeCache) {
+        try {
+          const ver = window.localStorage.getItem('colombo-tours-data-version');
+          if (ver && /^\d+$/.test(ver)) {
+            freshQuery = `fresh=1&v=${ver}`;
+          }
+        } catch {
+          // ignore
+        }
+      }
       const endpoint = shouldBypassEdgeCache
-        ? '/api/bootstrap?fresh=1'
+        ? `/api/bootstrap?${freshQuery}`
         : '/api/bootstrap';
-      const data = await apiFetch(endpoint);
+      const data = await apiFetch(endpoint, { retries: 1 });
       setSettings(data.settings || DEFAULT_SETTINGS);
       setCategories(Array.isArray(data.categories) ? data.categories : []);
       setServices(Array.isArray(data.services) ? data.services : []);

@@ -38,6 +38,24 @@ export function clearAuthCookie(res) {
   });
 }
 
+/**
+ * Lightweight, zero-DB verification of whether a request carries a valid staff JWT.
+ * Used to restrict ?fresh=1 CDN cache bypasses to authenticated staff only.
+ */
+export function hasValidAdminToken(req) {
+  try {
+    let token = req.cookies?.[AUTH_COOKIE_NAME];
+    if (!token && req.headers.authorization?.startsWith('Bearer ')) {
+      token = req.headers.authorization.slice(7).trim();
+    }
+    if (!token || !env.jwtSecret) return false;
+    const decoded = jwt.verify(token, env.jwtSecret);
+    return Boolean(decoded?.sub && decoded?.role === 'admin');
+  } catch {
+    return false;
+  }
+}
+
 export async function requireAdmin(req, res, next) {
   try {
     let token = req.cookies?.[AUTH_COOKIE_NAME];

@@ -333,4 +333,129 @@ describe('Admin Portal Security, Confirmation Modals & Floating Toasts', () => {
       window.history.pushState({}, '', originalPathname);
     }
   });
+
+  it('supports 1-click backup JSON download and confirmed backup restore flow in Admin Settings', async () => {
+    const user = userEvent.setup();
+    const payload = createAdminBootstrapPayload();
+    const exportedSnapshot = {
+      app: 'colombo-tours',
+      schemaVersion: 1,
+      exportedAt: '2026-11-25T12:00:00.000Z',
+      counts: { vehicles: 1, categories: 1, services: 1 },
+      data: {
+        settings: payload.settings,
+        categories: payload.categories,
+        services: payload.services,
+        vehicles: payload.vehicles,
+      },
+    };
+
+    const fetchMock = vi.fn(async (url, opts = {}) => {
+      const method = (opts.method || 'GET').toUpperCase();
+      if (url === '/api/admin/bootstrap' && method === 'GET') {
+        return jsonResponse(payload);
+      }
+      if (url === '/api/admin/backup' && method === 'GET') {
+        return jsonResponse(exportedSnapshot);
+      }
+      if (url === '/api/admin/restore' && method === 'POST') {
+        const parsedBody = JSON.parse(opts.body);
+        return jsonResponse({
+          ok: true,
+          mode: parsedBody.mode,
+          restored: {
+            vehicles: 1,
+            categories: 1,
+            services: 1,
+            settingsUpdated: true,
+          },
+          restoredAt: '2026-11-25T12:05:00.000Z',
+        });
+      }
+      return jsonResponse({ error: `Unexpected ${method} ${url}` }, 404);
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    const prevCreateObjUrl = URL.createObjectURL;
+    const prevRevokeObjUrl = URL.revokeObjectURL;
+    const createObjUrl = vi.fn().mockReturnValue('blob:colombo-backup');
+    const revokeObjUrl = vi.fn();
+    URL.createObjectURL = createObjUrl;
+    URL.revokeObjectURL = revokeObjUrl;
+    const anchorClickSpy = vi
+      .spyOn(HTMLAnchorElement.prototype, 'click')
+      .mockImplementation(() => {});
+
+    const originalPathname = window.location.pathname;
+    window.history.pushState({}, '', '/admin');
+
+    try {
+      render(
+        <ThemeProvider>
+          <SiteProvider>
+            <MemoryRouter initialEntries={['/admin']}>
+              <Routes>
+                <Route path="/admin" element={<AdminDashboardPage />} />
+                <Route path="/admin/login" element={<div>Login</div>} />
+              </Routes>
+            </MemoryRouter>
+          </SiteProvider>
+        </ThemeProvider>
+      );
+
+      await waitFor(() =>
+        expect(screen.getByTestId('admin-tab-settings')).toBeInTheDocument()
+      );
+      await user.click(screen.getByTestId('admin-tab-settings'));
+
+      // 1. 1-click download backup
+      await user.click(screen.getByTestId('admin-backup-download-btn'));
+      await waitFor(() =>
+        expect(screen.getByTestId('admin-toast-stack')).toHaveTextContent(
+          /Downloaded colombo-tours-backup-/i
+        )
+      );
+      expect(createObjUrl).toHaveBeenCalled();
+      expect(anchorClickSpy).toHaveBeenCalled();
+      expect(revokeObjUrl).toHaveBeenCalled();
+
+      // 2. Upload valid backup JSON -> preview appears -> choose replace -> confirm modal -> POST /api/admin/restore
+      const validFile = new File(
+        [JSON.stringify(exportedSnapshot)],
+        'colombo-tours-backup-2026-11-25.json',
+        { type: 'application/json' }
+      );
+      await user.upload(screen.getByTestId('admin-backup-file-input'), validFile);
+
+      const preview = await screen.findByTestId('admin-backup-preview');
+      expect(preview).toHaveTextContent('colombo-tours-backup-2026-11-25.json');
+      expect(preview).toHaveTextContent('1 vehicles · 1 categories · 1 services');
+
+      await user.click(screen.getByTestId('backup-mode-replace'));
+      await user.click(screen.getByTestId('admin-backup-restore-btn'));
+
+      const dialog = screen.getByTestId('admin-confirm-dialog');
+      expect(within(dialog).getByTestId('confirm-dialog-title')).toHaveTextContent(
+        'Full Restore (Replace All Data)?'
+      );
+
+      await user.click(within(dialog).getByTestId('confirm-dialog-confirm'));
+
+      await waitFor(() =>
+        expect(
+          fetchMock.mock.calls.some(
+            ([u, o]) => u === '/api/admin/restore' && o?.method === 'POST'
+          )
+        ).toBe(true)
+      );
+      expect(screen.getByTestId('admin-toast-stack')).toHaveTextContent(
+        /Backup restored \(replace\)/i
+      );
+      expect(screen.queryByTestId('admin-backup-preview')).not.toBeInTheDocument();
+    } finally {
+      URL.createObjectURL = prevCreateObjUrl;
+      URL.revokeObjectURL = prevRevokeObjUrl;
+      window.history.pushState({}, '', originalPathname);
+    }
+  });
 });

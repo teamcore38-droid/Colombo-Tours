@@ -383,6 +383,7 @@ export function VehicleDetailPage() {
                       src={activePhoto?.url}
                       alt={activePhoto?.alt || vehicle.name}
                       eager
+                      priority
                       deliveryWidth={1280}
                       className="h-full w-full object-cover object-center"
                     />
@@ -410,6 +411,7 @@ export function VehicleDetailPage() {
                           <VehiclePhoto
                             src={photo.url}
                             alt={photo.alt || `${vehicle.name} photo ${idx + 1}`}
+                            deliveryWidth={240}
                             className="h-full w-full object-cover"
                           />
                         </button>

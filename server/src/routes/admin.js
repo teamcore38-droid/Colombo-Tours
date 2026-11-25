@@ -8,6 +8,10 @@ import { Category } from '../models/Category.js';
 import { Service } from '../models/Service.js';
 import { SiteSettings } from '../models/SiteSettings.js';
 import { Vehicle } from '../models/Vehicle.js';
+import {
+  exportBackupSnapshot,
+  restoreBackupSnapshot,
+} from '../utils/backup.js';
 import { generateUniqueSlug } from '../utils/slug.js';
 import {
   deleteStoredImage,
@@ -52,6 +56,17 @@ const telegramVerifyLimiter = rateLimit({
   message: {
     error:
       'Too many Telegram verification checks. Please wait a few minutes and try again.',
+  },
+});
+
+const backupLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: env.isTest ? 1000 : 20,
+  standardHeaders: 'draft-7',
+  legacyHeaders: false,
+  message: {
+    error:
+      'Too many backup or restore requests. Please wait a few minutes and try again.',
   },
 });
 
@@ -312,7 +327,7 @@ router.get('/vehicles', async (req, res, next) => {
     if (status === 'published') filter.isPublished = true;
     if (status === 'unpublished') filter.isPublished = false;
 
-    const trimmedSearch = String(search).trim();
+    const trimmedSearch = String(search).trim().slice(0, 80);
     if (trimmedSearch) {
       const escaped = trimmedSearch.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
       const rx = new RegExp(escaped, 'i');
@@ -1174,5 +1189,37 @@ router.post(
     }
   }
 );
+
+// --- 1-Click Backup Download & Restore ---
+router.get('/backup', backupLimiter, async (req, res, next) => {
+  try {
+    const snapshot = await exportBackupSnapshot({
+      exportedBy: req.admin?.email || '',
+    });
+    const stamp = new Date().toISOString().slice(0, 10);
+    res.set(
+      'Content-Disposition',
+      `attachment; filename="colombo-tours-backup-${stamp}.json"`
+    );
+    return res.json(snapshot);
+  } catch (error) {
+    return next(error);
+  }
+});
+
+router.post('/restore', backupLimiter, async (req, res, next) => {
+  try {
+    const rawMode = req.body?.mode;
+    const mode = rawMode === undefined ? 'merge' : String(rawMode);
+    const backupPayload =
+      req.body && typeof req.body === 'object' && 'backup' in req.body
+        ? req.body.backup
+        : req.body;
+    const result = await restoreBackupSnapshot(backupPayload, { mode });
+    return res.json(result);
+  } catch (error) {
+    return next(error);
+  }
+});
 
 export default router;

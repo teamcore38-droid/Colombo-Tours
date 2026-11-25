@@ -20,6 +20,7 @@ import {
 } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
+import { AdminBackupCard } from '../components/AdminBackupCard';
 import { AdminToastStack } from '../components/AdminToastStack';
 import { AdminVehicleModal } from '../components/AdminVehicleModal';
 import { BrandLogo } from '../components/BrandLogo';
@@ -202,16 +203,21 @@ export function AdminDashboardPage() {
     });
   }, []);
 
+  const loadAdminBootstrap = useCallback(async () => {
+    const res = await apiFetch('/api/admin/bootstrap');
+    setAdmin(res.admin || null);
+    setVehicles(res.vehicles || []);
+    setCategories(res.categories || []);
+    setServices(res.services || []);
+    applySettingsPayload(res.settings);
+    return res;
+  }, [applySettingsPayload]);
+
   useEffect(() => {
     let mounted = true;
-    apiFetch('/api/admin/bootstrap')
-      .then((res) => {
+    loadAdminBootstrap()
+      .then(() => {
         if (!mounted) return;
-        setAdmin(res.admin || null);
-        setVehicles(res.vehicles || []);
-        setCategories(res.categories || []);
-        setServices(res.services || []);
-        applySettingsPayload(res.settings);
         setAuthChecked(true);
       })
       .catch((err) => {
@@ -226,7 +232,7 @@ export function AdminDashboardPage() {
     return () => {
       mounted = false;
     };
-  }, [navigate, applySettingsPayload, showError]);
+  }, [navigate, loadAdminBootstrap, showError]);
 
   const handleLogout = async () => {
     await apiFetch('/api/auth/logout', { method: 'POST' }).catch(() => {});
@@ -1323,7 +1329,7 @@ export function AdminDashboardPage() {
 
         {/* TAB 4: BOOKING CHANNELS (WHATSAPP, TELEGRAM, WECHAT) & SITE SETTINGS */}
         {activeTab === 'settings' ? (
-          <section className="max-w-3xl">
+          <section className="max-w-3xl space-y-6">
             <form
               onSubmit={(e) => handleSaveSettings(e)}
               className="card-luxury rounded-2xl p-6 space-y-6"
@@ -2225,6 +2231,16 @@ export function AdminDashboardPage() {
                 </button>
               </div>
             </form>
+
+            <AdminBackupCard
+              onRequestConfirm={setConfirmState}
+              onRestored={async () => {
+                await loadAdminBootstrap();
+                await notifyDataUpdated();
+              }}
+              showToast={showToast}
+              showError={showError}
+            />
           </section>
         ) : null}
       </main>

@@ -1,7 +1,9 @@
 import cookieParser from 'cookie-parser';
 import cors from 'cors';
 import express from 'express';
+import rateLimit from 'express-rate-limit';
 import helmet from 'helmet';
+import mongoose from 'mongoose';
 import multer from 'multer';
 import { connectDB } from './config/db.js';
 import { env } from './config/env.js';
@@ -51,8 +53,47 @@ export function createApp({ skipDbMiddleware = false } = {}) {
   app.use(express.urlencoded({ extended: true, limit: '2mb' }));
   app.use(cookieParser());
 
-  app.get('/api/health', (_req, res) => {
-    res.json({ status: 'ok', service: 'colombo-tours-api' });
+  const healthLimiter = rateLimit({
+    windowMs: 60 * 1000,
+    limit: env.isTest ? 1000 : 60,
+    standardHeaders: 'draft-7',
+    legacyHeaders: false,
+    message: { error: 'Too many health check requests.' },
+  });
+
+  app.get('/api/health', healthLimiter, async (_req, res) => {
+    res.set('Cache-Control', 'no-store');
+    const startedAt = Date.now();
+    try {
+      if (!skipDbMiddleware) {
+        await connectDB();
+      }
+      if (mongoose.connection.readyState !== 1 || !mongoose.connection.db) {
+        return res.status(503).json({
+          status: 'degraded',
+          service: 'colombo-tours-api',
+          database: 'disconnected',
+          timestamp: new Date().toISOString(),
+        });
+      }
+
+      await mongoose.connection.db.admin().command({ ping: 1, maxTimeMS: 3000 });
+      return res.json({
+        status: 'ok',
+        service: 'colombo-tours-api',
+        database: 'connected',
+        dbLatencyMs: Date.now() - startedAt,
+        uptimeSeconds: Math.round(process.uptime()),
+        timestamp: new Date().toISOString(),
+      });
+    } catch {
+      return res.status(503).json({
+        status: 'degraded',
+        service: 'colombo-tours-api',
+        database: 'disconnected',
+        timestamp: new Date().toISOString(),
+      });
+    }
   });
 
   // Ensure MongoDB connection & base setup before hitting database routes
