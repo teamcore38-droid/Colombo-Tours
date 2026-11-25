@@ -298,6 +298,9 @@ describe('Colombo Tours Storefront UI', () => {
     expect(decodeURIComponent(srvBtn.getAttribute('href'))).toContain(
       'Airport Transfer (BIA / CMB) service'
     );
+    // Service cards use split 2-row booking layout so buttons never clip on 4-column desktop cards
+    expect(srvBtn.className).toContain('col-span-2');
+    expect(srvBtn.parentElement.className).toContain('grid-cols-2');
 
     const srvTgBtn = screen.getByTestId('service-telegram-airport-transfers');
     expect(srvTgBtn.getAttribute('href')).toContain(

@@ -41,7 +41,7 @@ export function WeChatIcon({ className = 'w-4 h-4' }) {
 }
 
 const SIZE_STYLES = {
-  xs: 'px-2.5 py-2 text-[11px] gap-1',
+  xs: 'px-2 py-2.5 text-[11px] xl:text-xs gap-1',
   sm: 'px-3 py-2 text-xs gap-1.5',
   md: 'px-4 py-2.5 text-sm gap-2',
   lg: 'px-5 py-3 text-sm sm:text-base gap-2',
@@ -297,9 +297,12 @@ export function BookingChannelGroup({
   const containerClass =
     layout === 'row'
       ? `flex flex-wrap items-center gap-2 ${className}`
-      : `grid grid-cols-3 gap-1.5 sm:gap-2 ${className}`;
+      : layout === 'split'
+        ? `grid grid-cols-2 gap-2 ${className}`
+        : `grid grid-cols-3 gap-1.5 sm:gap-2 ${className}`;
 
   const btnWidthClass = layout === 'row' ? '' : 'w-full min-w-0';
+  const waSpanClass = layout === 'split' ? 'col-span-2' : '';
 
   return (
     <div className={containerClass} role="group" aria-label="Booking channels">
@@ -311,11 +314,11 @@ export function BookingChannelGroup({
         message={message}
         disabled={disabled}
         variant="gold"
-        size={size === 'xs' ? 'sm' : size}
+        size={size}
         dataTestId={whatsappTestId}
         onClick={onChannelClick}
-        className={`${btnWidthClass} ${
-          size === 'xs' ? 'px-2 py-2.5 text-[11px] sm:text-xs font-semibold' : ''
+        className={`${btnWidthClass} ${waSpanClass} ${
+          size === 'xs' || layout === 'split' ? 'font-semibold' : ''
         }`}
       >
         <span translate="no" className="notranslate">
@@ -334,9 +337,7 @@ export function BookingChannelGroup({
         size={size}
         dataTestId={telegramTestId}
         onClick={onChannelClick}
-        className={`${btnWidthClass} ${
-          size === 'xs' ? 'px-2 py-2.5 text-[11px] sm:text-xs font-medium' : ''
-        }`}
+        className={btnWidthClass}
       >
         Telegram
       </TelegramButton>
@@ -355,9 +356,7 @@ export function BookingChannelGroup({
         size={size}
         dataTestId={wechatTestId}
         onClick={onChannelClick}
-        className={`${btnWidthClass} ${
-          size === 'xs' ? 'px-2 py-2.5 text-[11px] sm:text-xs font-medium' : ''
-        }`}
+        className={btnWidthClass}
       >
         WeChat
       </WeChatButton>

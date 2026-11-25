@@ -77,6 +77,7 @@ export function ServicesSection({ services = [], whatsappNumber }) {
                   whatsappNumber={whatsappNumber}
                   preferWeChatModal
                   size="xs"
+                  layout="split"
                   whatsappTestId={`service-whatsapp-${service.slug}`}
                   telegramTestId={`service-telegram-${service.slug}`}
                   wechatTestId={`service-wechat-${service.slug}`}

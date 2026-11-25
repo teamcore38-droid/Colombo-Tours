@@ -56,10 +56,14 @@ export function WhatsAppButton({
   const isDisabled = disabled || !url;
 
   const sizeStyles = {
+    xs: 'px-2 py-2.5 text-[11px] xl:text-xs gap-1',
     sm: 'px-3 py-1.5 text-xs gap-1.5',
     md: 'px-4 py-2.5 text-sm gap-2',
     lg: 'px-6 py-3 text-sm sm:text-base gap-2',
   };
+
+  const iconSizeClass =
+    size === 'xs' ? 'w-3.5 h-3.5 shrink-0' : 'w-4 h-4 shrink-0';
 
   const variantStyles = {
     gold: 'btn-gold rounded-full',
@@ -87,7 +91,7 @@ export function WhatsAppButton({
             : ''
         }`}
       >
-        {showIcon ? <WhatsAppIcon className="w-4 h-4 shrink-0" /> : null}
+        {showIcon ? <WhatsAppIcon className={iconSizeClass} /> : null}
         <span>{children}</span>
       </button>
     );
@@ -103,7 +107,7 @@ export function WhatsAppButton({
       data-testid={dataTestId}
       className={baseClass}
     >
-      {showIcon ? <WhatsAppIcon className="w-4 h-4 shrink-0" /> : null}
+      {showIcon ? <WhatsAppIcon className={iconSizeClass} /> : null}
       <span>{children}</span>
     </a>
   );
