@@ -16,7 +16,7 @@ import {
   UserCheck,
   Users,
 } from 'lucide-react';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useState } from 'react';
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom';
 import { BookingChannelGroup } from '../components/ChannelButtons';
 import { FloatingContactButtons } from '../components/FloatingContactButtons';
@@ -92,14 +92,26 @@ export function VehicleDetailPage() {
     [pickupDate, returnDate, todayIso]
   );
 
+  // Reset scroll to top synchronously before first paint so CSS scroll-behavior: smooth never animates upward
+  useLayoutEffect(() => {
+    const root = document.documentElement;
+    const prevScrollBehavior = root.style.scrollBehavior;
+    root.style.scrollBehavior = 'auto';
+    try {
+      window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
+    } catch {
+      // Fallback for older browsers or test environments
+    }
+    root.scrollTop = 0;
+    if (document.body) {
+      document.body.scrollTop = 0;
+    }
+    root.style.scrollBehavior = prevScrollBehavior;
+  }, [safeSlug]);
+
   useEffect(() => {
     setPhotoIdx(0);
     setCopiedLink(false);
-    try {
-      window.scrollTo({ top: 0, behavior: 'auto' });
-    } catch {
-      // jsdom does not implement scrollTo
-    }
   }, [safeSlug]);
 
   useEffect(() => {

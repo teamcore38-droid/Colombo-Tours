@@ -372,11 +372,22 @@ describe('Colombo Tours Storefront UI', () => {
     expect(screen.getByTestId('missing-photo-fallback')).toBeInTheDocument();
 
     // Clicking View Specs navigates to dedicated VehicleDetailPage (not a popup modal)
+    // and resets scroll synchronously with behavior: 'instant' (never smooth-scrolling upward)
+    const scrollSpy = vi.spyOn(window, 'scrollTo');
+    document.documentElement.scrollTop = 1400;
     await user.click(
       screen.getByTestId('vehicle-specs-2024-mercedes-benz-s-class')
     );
     const detailPage = await screen.findByTestId('vehicle-detail-page');
     expect(detailPage).toBeInTheDocument();
+    expect(scrollSpy).toHaveBeenCalledWith({
+      top: 0,
+      left: 0,
+      behavior: 'instant',
+    });
+    expect(document.documentElement.scrollTop).toBe(0);
+    expect(document.documentElement.style.scrollBehavior).toBe('');
+    scrollSpy.mockRestore();
     expect(screen.queryByTestId('vehicle-specs-modal')).not.toBeInTheDocument();
     expect(screen.getByTestId('vehicle-detail-title')).toHaveTextContent(
       '2024 Mercedes-Benz S-Class'
