@@ -71,7 +71,7 @@ export function WhatsAppButton({
 
   if (isDisabled) {
     const disabledReason = !url
-      ? 'WhatsApp enquiry is unavailable until a valid WhatsApp number is configured in Admin.'
+      ? 'WhatsApp enquiry is currently unavailable.'
       : 'Please correct the form details before sending your WhatsApp enquiry.';
     return (
       <button

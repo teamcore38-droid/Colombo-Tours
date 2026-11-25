@@ -92,8 +92,8 @@ export function FloatingContactButtons() {
           type="button"
           disabled
           aria-disabled="true"
-          aria-label="WeChat support is unavailable until WeChat is enabled and configured in Admin."
-          title="WeChat support is unavailable until WeChat is enabled and configured in Admin."
+          aria-label="WeChat concierge is currently unavailable."
+          title="WeChat concierge is currently unavailable."
           data-testid="floating-wechat-btn"
           className={`${circleBase} ${secondaryDisabled} text-[#07C160]/70`}
         >
@@ -119,8 +119,8 @@ export function FloatingContactButtons() {
           type="button"
           disabled
           aria-disabled="true"
-          aria-label="Telegram support is unavailable until Telegram is enabled and configured in Admin."
-          title="Telegram support is unavailable until Telegram is enabled and configured in Admin."
+          aria-label="Telegram concierge is currently unavailable."
+          title="Telegram concierge is currently unavailable."
           data-testid="floating-telegram-btn"
           className={`${circleBase} ${secondaryDisabled} text-[#2AABEE]/70`}
         >
@@ -146,8 +146,8 @@ export function FloatingContactButtons() {
           type="button"
           disabled
           aria-disabled="true"
-          aria-label="WhatsApp support is unavailable until WhatsApp is enabled and configured in Admin."
-          title="WhatsApp support is unavailable until WhatsApp is enabled and configured in Admin."
+          aria-label="WhatsApp concierge is currently unavailable."
+          title="WhatsApp concierge is currently unavailable."
           data-testid="floating-whatsapp-btn"
           className={`btn-gold ${circleBase} ring-1 ring-[#F3DC96]/30`}
         >

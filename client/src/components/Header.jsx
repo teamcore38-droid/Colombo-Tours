@@ -1,4 +1,4 @@
-import { Menu, Moon, ShieldCheck, Sun, X } from 'lucide-react';
+import { Menu, Moon, Sun, X } from 'lucide-react';
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useSite } from '../context/SiteContext';
@@ -61,13 +61,6 @@ export function Header() {
               className="hover:text-[var(--gold-accent)] transition-colors"
             >
               Quick Enquiry
-            </Link>
-            <Link
-              to="/admin"
-              className="inline-flex items-center gap-1.5 hover:text-[var(--gold-accent)] transition-colors"
-            >
-              <ShieldCheck className="h-3.5 w-3.5 text-[var(--gold-accent)]" />
-              <span>Admin</span>
             </Link>
           </nav>
 
@@ -191,14 +184,6 @@ export function Header() {
                 className="rounded-xl px-3.5 py-2.5 text-[var(--text-primary)] hover:bg-[var(--gold-soft-bg)] hover:text-[var(--gold-accent)]"
               >
                 Chauffeur &amp; Wedding Services
-              </Link>
-              <Link
-                to="/admin"
-                onClick={() => setDrawerOpen(false)}
-                className="mt-2 flex items-center gap-2 rounded-xl border border-[var(--border-gold)] px-3.5 py-2.5 text-[var(--gold-accent)] hover:bg-[var(--gold-soft-bg)]"
-              >
-                <ShieldCheck className="h-4 w-4" />
-                <span>Staff Admin Dashboard</span>
               </Link>
             </nav>
 

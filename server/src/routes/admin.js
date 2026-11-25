@@ -33,6 +33,14 @@ import { serializeSettings } from './public.js';
 
 const router = Router();
 
+// Never cache or index private staff admin API responses
+router.use((_req, res, next) => {
+  res.set('Cache-Control', 'no-store, no-cache, must-revalidate, private');
+  res.set('Pragma', 'no-cache');
+  res.set('X-Robots-Tag', 'noindex, nofollow, noarchive');
+  return next();
+});
+
 // All admin routes strictly require authenticated staff
 router.use(requireAdmin);
 
@@ -179,6 +187,49 @@ function sanitizeHighlights(raw) {
   }
   return [];
 }
+
+// --- Single-request fast Admin Dashboard bootstrap ---
+router.get('/bootstrap', async (req, res, next) => {
+  try {
+    const [vehicles, categories, services, settingsDoc] = await Promise.all([
+      Vehicle.find()
+        .populate('categories', 'name slug sortOrder isActive')
+        .sort({ sortOrder: 1, createdAt: -1 })
+        .lean(),
+      Category.find().sort({ sortOrder: 1, name: 1 }).lean(),
+      Service.find().sort({ sortOrder: 1, name: 1 }).lean(),
+      SiteSettings.findOne({ key: 'global' }).lean(),
+    ]);
+
+    const countMap = new Map();
+    for (const vehicle of vehicles) {
+      for (const cat of vehicle.categories || []) {
+        const key = String(cat?._id || cat);
+        countMap.set(key, (countMap.get(key) || 0) + 1);
+      }
+    }
+
+    const enrichedCategories = categories.map((cat) => ({
+      ...cat,
+      vehicleCount: countMap.get(String(cat._id)) || 0,
+    }));
+
+    return res.json({
+      admin: {
+        id: String(req.admin._id),
+        email: req.admin.email,
+        name: req.admin.name,
+        role: req.admin.role,
+      },
+      vehicles,
+      categories: enrichedCategories,
+      services,
+      settings: serializeSettings(settingsDoc),
+    });
+  } catch (error) {
+    return next(error);
+  }
+});
 
 // --- Overview ---
 router.get('/overview', async (_req, res, next) => {

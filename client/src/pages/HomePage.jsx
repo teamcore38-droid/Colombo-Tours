@@ -22,11 +22,23 @@ const INITIAL_FILTERS = {
 };
 
 export function HomePage() {
-  const { settings, categories, services, vehicles, loading, error, refreshSiteData } =
-    useSite();
+  const {
+    settings,
+    categories,
+    services,
+    vehicles,
+    loading,
+    error,
+    refreshSiteData,
+    ensureSiteDataLoaded,
+  } = useSite();
   const navigate = useNavigate();
   const location = useLocation();
   const [searchParams] = useSearchParams();
+
+  useEffect(() => {
+    ensureSiteDataLoaded();
+  }, [ensureSiteDataLoaded]);
 
   const [search, setSearch] = useState('');
   const [activeCategory, setActiveCategory] = useState('all');
@@ -158,9 +170,8 @@ export function HomePage() {
           >
             <AlertCircle className="h-4 w-4 shrink-0 text-[var(--gold-accent)]" />
             <span>
-              Booking buttons (WhatsApp, Telegram, WeChat) are currently
-              disabled until at least one contact channel is saved in the Staff
-              Admin Dashboard.
+              Instant booking channels (WhatsApp, Telegram, WeChat) are
+              currently being updated. Please check back shortly.
             </span>
           </div>
         ) : null}

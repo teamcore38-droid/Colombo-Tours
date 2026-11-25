@@ -4,6 +4,7 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
 } from 'react';
 import { apiFetch } from '../lib/api';
@@ -51,14 +52,21 @@ function hasRecentAdminEdit() {
   }
 }
 
+function isOnAdminPathname() {
+  if (typeof window === 'undefined') return false;
+  return Boolean(window.location?.pathname?.startsWith('/admin'));
+}
+
 export function SiteProvider({ children }) {
   const [settings, setSettings] = useState(DEFAULT_SETTINGS);
   const [categories, setCategories] = useState([]);
   const [services, setServices] = useState([]);
   const [vehicles, setVehicles] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(() => !isOnAdminPathname());
   const [error, setError] = useState('');
   const [wechatEnquiry, setWechatEnquiry] = useState(null);
+  const loadedRef = useRef(false);
+  const inflightRef = useRef(false);
 
   const openWeChatEnquiry = useCallback((payload) => {
     setWechatEnquiry(payload || null);
@@ -69,6 +77,7 @@ export function SiteProvider({ children }) {
   }, []);
 
   const refreshSiteData = useCallback(async ({ silent = false, fresh = false } = {}) => {
+    inflightRef.current = true;
     if (!silent) setLoading(true);
     setError('');
     try {
@@ -81,14 +90,25 @@ export function SiteProvider({ children }) {
       setCategories(Array.isArray(data.categories) ? data.categories : []);
       setServices(Array.isArray(data.services) ? data.services : []);
       setVehicles(Array.isArray(data.vehicles) ? data.vehicles : []);
+      loadedRef.current = true;
     } catch (err) {
       setError(err.message || 'Unable to load fleet details right now.');
     } finally {
+      inflightRef.current = false;
       if (!silent) setLoading(false);
     }
   }, []);
 
+  const ensureSiteDataLoaded = useCallback(() => {
+    if (loadedRef.current || inflightRef.current) return;
+    refreshSiteData();
+  }, [refreshSiteData]);
+
   useEffect(() => {
+    if (isOnAdminPathname()) {
+      setLoading(false);
+      return;
+    }
     refreshSiteData();
   }, [refreshSiteData]);
 
@@ -96,7 +116,10 @@ export function SiteProvider({ children }) {
   useEffect(() => {
     const onStorage = (e) => {
       if (e.key === 'colombo-tours-data-version') {
-        refreshSiteData({ silent: true, fresh: true });
+        loadedRef.current = false;
+        if (!isOnAdminPathname()) {
+          refreshSiteData({ silent: true, fresh: true });
+        }
       }
     };
     window.addEventListener('storage', onStorage);
@@ -111,7 +134,11 @@ export function SiteProvider({ children }) {
     } catch {
       // ignore
     }
-    return refreshSiteData({ silent: true, fresh: true });
+    loadedRef.current = false;
+    if (!isOnAdminPathname()) {
+      return refreshSiteData({ silent: true, fresh: true });
+    }
+    return Promise.resolve();
   }, [refreshSiteData]);
 
   const value = useMemo(
@@ -124,6 +151,7 @@ export function SiteProvider({ children }) {
       loading,
       error,
       refreshSiteData,
+      ensureSiteDataLoaded,
       notifyDataUpdated,
       wechatEnquiry,
       openWeChatEnquiry,
@@ -137,6 +165,7 @@ export function SiteProvider({ children }) {
       loading,
       error,
       refreshSiteData,
+      ensureSiteDataLoaded,
       notifyDataUpdated,
       wechatEnquiry,
       openWeChatEnquiry,

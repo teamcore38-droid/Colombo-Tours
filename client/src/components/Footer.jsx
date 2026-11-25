@@ -1,4 +1,3 @@
-import { ShieldCheck } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { useSite } from '../context/SiteContext';
 import { BrandLogo } from './BrandLogo';
@@ -53,13 +52,6 @@ export function Footer() {
                 className="hover:text-[var(--gold-accent)] transition-colors"
               >
                 Quick Enquiry
-              </Link>
-              <Link
-                to="/admin"
-                className="inline-flex items-center gap-1 hover:text-[var(--gold-accent)] transition-colors"
-              >
-                <ShieldCheck className="h-3.5 w-3.5 text-[var(--gold-accent)]" />
-                <span>Staff Admin</span>
               </Link>
             </div>
           </div>

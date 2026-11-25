@@ -23,14 +23,22 @@ export function createApp({ skipDbMiddleware = false } = {}) {
     })
   );
 
+  const allowedOrigins = new Set([
+    ...env.corsOrigins,
+    ...[
+      process.env.VERCEL_URL,
+      process.env.VERCEL_BRANCH_URL,
+      process.env.VERCEL_PROJECT_PRODUCTION_URL,
+    ]
+      .filter(Boolean)
+      .map((host) => `https://${host.replace(/^https?:\/\//i, '')}`),
+  ]);
+
   app.use(
     cors({
       origin(origin, callback) {
         if (!origin) return callback(null, true);
-        if (
-          env.corsOrigins.includes(origin) ||
-          origin.endsWith('.vercel.app')
-        ) {
+        if (allowedOrigins.has(origin)) {
           return callback(null, true);
         }
         return callback(null, false);

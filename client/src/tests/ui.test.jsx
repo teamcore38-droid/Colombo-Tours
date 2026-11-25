@@ -657,4 +657,44 @@ describe('Colombo Tours Storefront UI', () => {
 
     expect(await screen.findByTestId('vehicle-not-found')).toBeInTheDocument();
   });
+
+  it('keeps Staff Admin links and internal admin copy completely hidden from customer storefront pages', async () => {
+    const user = userEvent.setup();
+    renderStorefront(createBootstrapPayload({ whatsappNumber: '' }));
+
+    await waitFor(() =>
+      expect(screen.getByTestId('fleet-grid')).toBeInTheDocument()
+    );
+
+    // No /admin links anywhere in desktop header, footer, or page
+    const allLinks = Array.from(document.querySelectorAll('a'));
+    expect(
+      allLinks.some((a) => (a.getAttribute('href') || '').includes('/admin'))
+    ).toBe(false);
+
+    // Open mobile navigation drawer and verify zero /admin links there too
+    await user.click(screen.getByLabelText('Open navigation menu'));
+    const mobileLinks = Array.from(document.querySelectorAll('a'));
+    expect(
+      mobileLinks.some((a) => (a.getAttribute('href') || '').includes('/admin'))
+    ).toBe(false);
+    await user.click(screen.getByLabelText('Close navigation menu'));
+
+    // Ensure no customer-facing text, title, or aria-label leaks internal Admin references
+    expect(document.body.textContent).not.toMatch(/staff admin|admin dashboard/i);
+    const elementsWithMeta = Array.from(
+      document.querySelectorAll('[title], [aria-label]')
+    );
+    for (const el of elementsWithMeta) {
+      expect(el.getAttribute('title') || '').not.toMatch(/\badmin\b/i);
+      expect(el.getAttribute('aria-label') || '').not.toMatch(/\badmin\b/i);
+    }
+
+    // Check dedicated vehicle detail page as well
+    await user.click(
+      screen.getByTestId('vehicle-specs-2024-mercedes-benz-s-class')
+    );
+    await screen.findByTestId('vehicle-detail-page');
+    expect(document.body.textContent).not.toMatch(/staff admin|admin dashboard/i);
+  });
 });

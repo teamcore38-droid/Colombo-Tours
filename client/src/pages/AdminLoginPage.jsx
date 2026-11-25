@@ -1,13 +1,16 @@
-import { AlertCircle, ArrowLeft, Lock, Mail } from 'lucide-react';
+import { AlertCircle, ArrowLeft, Eye, EyeOff, Lock, Mail } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { BrandLogo } from '../components/BrandLogo';
+import { useAdminPageMeta } from '../hooks/useAdminPageMeta';
 import { apiFetch } from '../lib/api';
 
 export function AdminLoginPage() {
+  useAdminPageMeta('Staff Portal — Colombo Tours');
   const navigate = useNavigate();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
 
@@ -94,7 +97,7 @@ export function AdminLoginPage() {
                   autoComplete="email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  placeholder="admin@colombotours.lk"
+                  placeholder="Enter your staff email"
                   data-testid="admin-email-input"
                   className="w-full rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-input)] py-2.5 pl-9 pr-3 text-sm text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:border-[var(--border-gold-strong)] focus:outline-none"
                 />
@@ -112,15 +115,27 @@ export function AdminLoginPage() {
                 <Lock className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--text-muted)]" />
                 <input
                   id="admin-password"
-                  type="password"
+                  type={showPassword ? 'text' : 'password'}
                   required
                   autoComplete="current-password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="Enter your password"
                   data-testid="admin-password-input"
-                  className="w-full rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-input)] py-2.5 pl-9 pr-3 text-sm text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:border-[var(--border-gold-strong)] focus:outline-none"
+                  className="w-full rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-input)] py-2.5 pl-9 pr-10 text-sm text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:border-[var(--border-gold-strong)] focus:outline-none"
                 />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword((prev) => !prev)}
+                  aria-label={showPassword ? 'Hide password' : 'Show password'}
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 flex h-7 w-7 items-center justify-center rounded-lg text-[var(--text-muted)] hover:text-[var(--text-primary)] cursor-pointer"
+                >
+                  {showPassword ? (
+                    <EyeOff className="h-4 w-4" />
+                  ) : (
+                    <Eye className="h-4 w-4" />
+                  )}
+                </button>
               </div>
             </div>
 

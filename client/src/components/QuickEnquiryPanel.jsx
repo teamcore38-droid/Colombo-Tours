@@ -323,8 +323,8 @@ export function QuickEnquiryPanel({
               data-testid="whatsapp-unconfigured-notice"
               className="mt-2.5 rounded-lg border border-[var(--border-gold)] bg-[var(--gold-soft-bg)] px-3 py-2 text-[11px] leading-relaxed text-[var(--text-secondary)]"
             >
-              Booking buttons are currently paused until Colombo Tours
-              configures WhatsApp, Telegram, or WeChat in the Admin Dashboard.
+              Instant booking channels are currently unavailable. Please check
+              back shortly.
             </p>
           ) : (
             <p className="mt-1 text-center text-[11px] text-[var(--text-muted)]">

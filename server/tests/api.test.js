@@ -87,11 +87,53 @@ describe('Colombo Tours API', () => {
     const r4 = await request(app)
       .post('/api/admin/settings/verify-telegram')
       .send({ handle: '@ColomboTours' });
+    const r5 = await request(app).get('/api/admin/bootstrap');
 
     expect(r1.status).toBe(401);
     expect(r2.status).toBe(401);
     expect(r3.status).toBe(401);
     expect(r4.status).toBe(401);
+    expect(r5.status).toBe(401);
+    expect(r5.headers['x-robots-tag']).toContain('noindex');
+    expect(r5.headers['cache-control']).toContain('no-store');
+  });
+
+  it('returns single-request /api/admin/bootstrap with no-store & noindex headers and rejects untrusted *.vercel.app CORS origins', async () => {
+    const evilCors = await request(app)
+      .get('/api/bootstrap')
+      .set('Origin', 'https://malicious-site.vercel.app');
+    expect(evilCors.status).toBe(200);
+    expect(evilCors.headers['access-control-allow-origin']).toBeUndefined();
+
+    const allowedCors = await request(app)
+      .get('/api/bootstrap')
+      .set('Origin', 'http://localhost:5173');
+    expect(allowedCors.status).toBe(200);
+    expect(allowedCors.headers['access-control-allow-origin']).toBe(
+      'http://localhost:5173'
+    );
+
+    const agent = request.agent(app);
+    const loginRes = await agent.post('/api/auth/login').send({
+      email: 'admin@colombotours.lk',
+      password: 'ChangeMe123!',
+    });
+    expect(loginRes.status).toBe(200);
+    expect(loginRes.headers['x-robots-tag']).toContain('noindex');
+    expect(loginRes.headers['cache-control']).toContain('no-store');
+
+    const bootRes = await agent.get('/api/admin/bootstrap');
+    expect(bootRes.status).toBe(200);
+    expect(bootRes.headers['x-robots-tag']).toContain('noindex');
+    expect(bootRes.headers['cache-control']).toContain('no-store');
+    expect(bootRes.body.admin.email).toBe('admin@colombotours.lk');
+    expect(Array.isArray(bootRes.body.vehicles)).toBe(true);
+    expect(Array.isArray(bootRes.body.categories)).toBe(true);
+    expect(Array.isArray(bootRes.body.services)).toBe(true);
+    expect(bootRes.body.settings).toBeTruthy();
+    expect(
+      bootRes.body.categories.some((c) => Number(c.vehicleCount) > 0)
+    ).toBe(true);
   });
 
   it('serves fast 302 redirects on /v/:slug for browsers and escaped JPEG OG cards for WhatsApp/Telegram crawlers', async () => {

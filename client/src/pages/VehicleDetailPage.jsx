@@ -70,7 +70,18 @@ export function VehicleDetailPage() {
   const { slug: rawSlug } = useParams();
   const navigate = useNavigate();
   const location = useLocation();
-  const { settings, vehicles, loading, error, refreshSiteData } = useSite();
+  const {
+    settings,
+    vehicles,
+    loading,
+    error,
+    refreshSiteData,
+    ensureSiteDataLoaded,
+  } = useSite();
+
+  useEffect(() => {
+    ensureSiteDataLoaded();
+  }, [ensureSiteDataLoaded]);
 
   const safeSlug = sanitizeVehicleSlug(rawSlug || '');
   const vehicle = useMemo(
@@ -322,9 +333,8 @@ export function VehicleDetailPage() {
               >
                 <AlertCircle className="h-4 w-4 shrink-0 text-[var(--gold-accent)]" />
                 <span>
-                  Booking buttons (WhatsApp, Telegram, WeChat) are currently
-                  disabled until at least one contact channel is saved in the
-                  Staff Admin Dashboard.
+                  Instant booking channels (WhatsApp, Telegram, WeChat) are
+                  currently being updated. Please check back shortly.
                 </span>
               </div>
             ) : null}

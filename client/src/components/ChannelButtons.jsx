@@ -94,7 +94,7 @@ export function TelegramButton({
 
   if (isDisabled) {
     const disabledReason = !url
-      ? 'Telegram enquiry is unavailable until Telegram is enabled and configured in Admin.'
+      ? 'Telegram enquiry is currently unavailable.'
       : 'Please correct the form details before sending your Telegram enquiry.';
     return (
       <button
@@ -181,7 +181,7 @@ export function WeChatButton({
 
   if (isDisabled) {
     const disabledReason = !action.active
-      ? 'WeChat enquiry is unavailable until WeChat is enabled and configured in Admin.'
+      ? 'WeChat enquiry is currently unavailable.'
       : 'Please correct the form details before sending your WeChat enquiry.';
     return (
       <button

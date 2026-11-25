@@ -20,6 +20,7 @@ import {
 } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
+import { AdminToastStack } from '../components/AdminToastStack';
 import { AdminVehicleModal } from '../components/AdminVehicleModal';
 import { BrandLogo } from '../components/BrandLogo';
 import {
@@ -27,9 +28,11 @@ import {
   WeChatIcon,
   WhatsAppIcon,
 } from '../components/ChannelButtons';
+import { ConfirmDialog } from '../components/ConfirmDialog';
 import { VehiclePhoto } from '../components/VehiclePhoto';
 import { useSite } from '../context/SiteContext';
 import { useTheme } from '../context/ThemeContext';
+import { useAdminPageMeta } from '../hooks/useAdminPageMeta';
 import { apiFetch, resolveApiUrl } from '../lib/api';
 import {
   buildVehicleEnquiryMessage,
@@ -50,7 +53,18 @@ import {
 } from '../lib/channels';
 import { optimizeImageForUpload } from '../lib/imageOptimize';
 
+function sortAdminVehicles(list) {
+  return [...list].sort((a, b) => {
+    const orderDiff = (Number(a.sortOrder) || 0) - (Number(b.sortOrder) || 0);
+    if (orderDiff !== 0) return orderDiff;
+    const aTime = a.createdAt ? Date.parse(a.createdAt) : 0;
+    const bTime = b.createdAt ? Date.parse(b.createdAt) : 0;
+    return bTime - aTime;
+  });
+}
+
 export function AdminDashboardPage() {
+  useAdminPageMeta('Staff Dashboard — Colombo Tours');
   const navigate = useNavigate();
   const { isDark, toggleTheme } = useTheme();
   const { notifyDataUpdated } = useSite();
@@ -111,89 +125,124 @@ export function AdminDashboardPage() {
     icon: 'car',
   });
 
-  const [notice, setNotice] = useState('');
-  const [error, setError] = useState('');
+  const [toasts, setToasts] = useState([]);
+  const [confirmState, setConfirmState] = useState(null);
+  const [confirmBusy, setConfirmBusy] = useState(false);
+  const [pendingIds, setPendingIds] = useState(() => new Set());
   const [savingSettings, setSavingSettings] = useState(false);
 
-  const showToast = (msg) => {
-    setError('');
-    setNotice(msg);
-  };
+  const dismissToast = useCallback((id) => {
+    setToasts((prev) => prev.filter((item) => item.id !== id));
+  }, []);
 
-  const loadDashboardData = useCallback(async () => {
-    try {
-      const [vRes, cRes, sRes, setRes] = await Promise.all([
-        apiFetch('/api/admin/vehicles'),
-        apiFetch('/api/admin/categories'),
-        apiFetch('/api/admin/services'),
-        apiFetch('/api/admin/settings'),
-      ]);
+  const pushToast = useCallback((type, message, options = {}) => {
+    const text = String(message || '').trim();
+    if (!text) return;
+    const id = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    setToasts((prev) => [
+      ...prev.slice(-3),
+      {
+        id,
+        type,
+        title: options.title || '',
+        message: text,
+        duration: options.duration,
+      },
+    ]);
+  }, []);
 
-      setVehicles(vRes.vehicles || []);
-      setCategories(cRes.categories || []);
-      setServices(sRes.services || []);
-      if (setRes.settings) {
-        setSettingsForm({
-          companyName: setRes.settings.companyName || 'Colombo Tours',
-          tagline: setRes.settings.tagline || '',
-          whatsappNumber: setRes.settings.whatsappNumber
-            ? `+${setRes.settings.whatsappNumber}`
-            : '',
-          whatsappLink: setRes.settings.whatsappLink || '',
-          whatsappMode: setRes.settings.whatsappMode || 'number',
-          whatsappEnabled: setRes.settings.whatsappEnabled !== false,
-          telegramHandle: setRes.settings.telegramDisplay || '',
-          telegramLink: setRes.settings.telegramLink || '',
-          telegramMode: setRes.settings.telegramMode || 'handle',
-          telegramEnabled: setRes.settings.telegramEnabled !== false,
-          wechatId: setRes.settings.wechatId || '',
-          wechatLink: setRes.settings.wechatLink || '',
-          wechatMode: setRes.settings.wechatMode || 'id',
-          wechatEnabled: setRes.settings.wechatEnabled !== false,
-          wechatQrUrl: setRes.settings.wechatQrUrl || '',
-          wechatQrStorageProvider:
-            setRes.settings.wechatQrStorageProvider || '',
-          wechatQrMediaId: setRes.settings.wechatQrMediaId || '',
-          heroHeadline: setRes.settings.heroHeadline || '',
-          heroSubheadline: setRes.settings.heroSubheadline || '',
-          supportGreeting: setRes.settings.supportGreeting || '',
-        });
-        setChannelStatus({
-          whatsapp: Boolean(setRes.settings.whatsappConfigured),
-          telegram: Boolean(setRes.settings.telegramConfigured),
-          wechat: Boolean(setRes.settings.wechatConfigured),
-        });
-      }
-    } catch (err) {
-      if (err.status === 401) {
-        navigate('/admin/login', { replace: true });
-        return;
-      }
-      setError(err.message || 'Failed to load dashboard data.');
-    }
-  }, [navigate]);
+  const showToast = useCallback(
+    (msg, options) => pushToast('success', msg, options),
+    [pushToast]
+  );
+
+  const showError = useCallback(
+    (msg, options) =>
+      pushToast('error', msg || 'Something went wrong. Please try again.', options),
+    [pushToast]
+  );
+
+  const setRowBusy = useCallback((id, busy) => {
+    setPendingIds((prev) => {
+      const next = new Set(prev);
+      if (busy) next.add(id);
+      else next.delete(id);
+      return next;
+    });
+  }, []);
+
+  const applySettingsPayload = useCallback((saved) => {
+    if (!saved) return;
+    setSettingsForm({
+      companyName: saved.companyName || 'Colombo Tours',
+      tagline: saved.tagline || '',
+      whatsappNumber: saved.whatsappNumber ? `+${saved.whatsappNumber}` : '',
+      whatsappLink: saved.whatsappLink || '',
+      whatsappMode: saved.whatsappMode || 'number',
+      whatsappEnabled: saved.whatsappEnabled !== false,
+      telegramHandle: saved.telegramDisplay || '',
+      telegramLink: saved.telegramLink || '',
+      telegramMode: saved.telegramMode || 'handle',
+      telegramEnabled: saved.telegramEnabled !== false,
+      wechatId: saved.wechatId || '',
+      wechatLink: saved.wechatLink || '',
+      wechatMode: saved.wechatMode || 'id',
+      wechatEnabled: saved.wechatEnabled !== false,
+      wechatQrUrl: saved.wechatQrUrl || '',
+      wechatQrStorageProvider: saved.wechatQrStorageProvider || '',
+      wechatQrMediaId: saved.wechatQrMediaId || '',
+      heroHeadline: saved.heroHeadline || '',
+      heroSubheadline: saved.heroSubheadline || '',
+      supportGreeting: saved.supportGreeting || '',
+    });
+    setChannelStatus({
+      whatsapp: Boolean(saved.whatsappConfigured),
+      telegram: Boolean(saved.telegramConfigured),
+      wechat: Boolean(saved.wechatConfigured),
+    });
+  }, []);
 
   useEffect(() => {
     let mounted = true;
-    apiFetch('/api/auth/me')
+    apiFetch('/api/admin/bootstrap')
       .then((res) => {
         if (!mounted) return;
-        setAdmin(res.admin);
+        setAdmin(res.admin || null);
+        setVehicles(res.vehicles || []);
+        setCategories(res.categories || []);
+        setServices(res.services || []);
+        applySettingsPayload(res.settings);
         setAuthChecked(true);
-        loadDashboardData();
       })
-      .catch(() => {
-        if (mounted) navigate('/admin/login', { replace: true });
+      .catch((err) => {
+        if (!mounted) return;
+        if (err?.status === 401) {
+          navigate('/admin/login', { replace: true });
+          return;
+        }
+        setAuthChecked(true);
+        showError(err?.message || 'Failed to load dashboard data.');
       });
     return () => {
       mounted = false;
     };
-  }, [navigate, loadDashboardData]);
+  }, [navigate, applySettingsPayload, showError]);
 
   const handleLogout = async () => {
     await apiFetch('/api/auth/logout', { method: 'POST' }).catch(() => {});
     navigate('/admin/login', { replace: true });
   };
+
+  const categoryVehicleCounts = useMemo(() => {
+    const map = new Map();
+    for (const vehicle of vehicles) {
+      for (const cat of vehicle.categories || []) {
+        const key = String(cat?._id || cat);
+        map.set(key, (map.get(key) || 0) + 1);
+      }
+    }
+    return map;
+  }, [vehicles]);
 
   const filteredVehicles = useMemo(() => {
     const q = fleetSearch.trim().toLowerCase();
@@ -219,7 +268,28 @@ export function AdminDashboardPage() {
     };
   }, [vehicles]);
 
+  const handleExecuteConfirm = async () => {
+    if (!confirmState?.onConfirm || confirmBusy) return;
+    setConfirmBusy(true);
+    try {
+      await confirmState.onConfirm();
+      setConfirmState(null);
+    } catch (err) {
+      if (err?.status === 401) {
+        setConfirmState(null);
+        navigate('/admin/login', { replace: true });
+        return;
+      }
+      showError(err?.message || 'Action could not be completed.');
+      setConfirmState(null);
+    } finally {
+      setConfirmBusy(false);
+    }
+  };
+
   const handleTogglePublish = async (vehicle) => {
+    if (pendingIds.has(vehicle._id)) return;
+    setRowBusy(vehicle._id, true);
     try {
       const res = await apiFetch(`/api/admin/vehicles/${vehicle._id}/publish`, {
         method: 'PATCH',
@@ -235,11 +305,15 @@ export function AdminDashboardPage() {
           : `"${vehicle.name}" has been unpublished (hidden from public view).`
       );
     } catch (err) {
-      setError(err.message);
+      showError(err.message);
+    } finally {
+      setRowBusy(vehicle._id, false);
     }
   };
 
   const handleToggleFeatured = async (vehicle) => {
+    if (pendingIds.has(vehicle._id)) return;
+    setRowBusy(vehicle._id, true);
     try {
       const res = await apiFetch(
         `/api/admin/vehicles/${vehicle._id}/featured`,
@@ -258,22 +332,35 @@ export function AdminDashboardPage() {
           : `"${vehicle.name}" removed from Hero Banner.`
       );
     } catch (err) {
-      setError(err.message);
+      showError(err.message);
+    } finally {
+      setRowBusy(vehicle._id, false);
     }
   };
 
-  const handleDeleteVehicle = async (vehicle) => {
-    if (!window.confirm(`Remove "${vehicle.name}" permanently?`)) return;
-    try {
-      await apiFetch(`/api/admin/vehicles/${vehicle._id}`, {
-        method: 'DELETE',
-      });
-      setVehicles((prev) => prev.filter((v) => v._id !== vehicle._id));
-      await notifyDataUpdated();
-      showToast(`Removed "${vehicle.name}".`);
-    } catch (err) {
-      setError(err.message);
-    }
+  const requestDeleteVehicle = (vehicle) => {
+    const photoCount = vehicle.photos?.length || 0;
+    setConfirmState({
+      title: 'Delete Vehicle?',
+      itemName: vehicle.name,
+      description:
+        'Are you sure you want to permanently remove this vehicle from your fleet?',
+      consequence:
+        photoCount > 0
+          ? `This will also permanently remove ${photoCount} attached ${photoCount === 1 ? 'photo' : 'photos'} from storage. This action cannot be undone.`
+          : 'This action permanently deletes the listing and cannot be undone.',
+      confirmLabel: 'Delete Vehicle',
+      busyLabel: 'Deleting...',
+      variant: 'danger',
+      onConfirm: async () => {
+        await apiFetch(`/api/admin/vehicles/${vehicle._id}`, {
+          method: 'DELETE',
+        });
+        setVehicles((prev) => prev.filter((v) => v._id !== vehicle._id));
+        await notifyDataUpdated();
+        showToast(`Removed "${vehicle.name}" from the fleet.`);
+      },
+    });
   };
 
   const handleCreateCategory = async (e) => {
@@ -294,11 +381,15 @@ export function AdminDashboardPage() {
       await notifyDataUpdated();
       showToast(`Added category "${res.category.name}".`);
     } catch (err) {
-      setError(err.message);
+      showError(err.message);
     }
   };
 
   const handleUpdateCategory = async (catId) => {
+    if (!editingCatName.trim()) {
+      showError('Category name is required.');
+      return;
+    }
     try {
       const res = await apiFetch(`/api/admin/categories/${catId}`, {
         method: 'PUT',
@@ -308,35 +399,58 @@ export function AdminDashboardPage() {
         },
       });
       setCategories((prev) =>
-        prev.map((c) =>
-          c._id === catId ? { ...c, ...res.category } : c
-        )
+        prev.map((c) => (c._id === catId ? { ...c, ...res.category } : c))
+      );
+      setVehicles((prev) =>
+        prev.map((v) => ({
+          ...v,
+          categories: (v.categories || []).map((c) =>
+            String(c?._id || c) === String(catId)
+              ? { ...c, name: res.category.name, slug: res.category.slug }
+              : c
+          ),
+        }))
       );
       setEditingCatId(null);
       await notifyDataUpdated();
       showToast(`Updated category "${res.category.name}".`);
     } catch (err) {
-      setError(err.message);
+      showError(err.message);
     }
   };
 
-  const handleDeleteCategory = async (cat) => {
-    if (
-      !window.confirm(
-        `Delete category "${cat.name}"? Vehicles in this category will remain in the fleet.`
-      )
-    ) {
-      return;
-    }
-    try {
-      await apiFetch(`/api/admin/categories/${cat._id}`, { method: 'DELETE' });
-      setCategories((prev) => prev.filter((c) => c._id !== cat._id));
-      await loadDashboardData();
-      await notifyDataUpdated();
-      showToast(`Deleted category "${cat.name}".`);
-    } catch (err) {
-      setError(err.message);
-    }
+  const requestDeleteCategory = (cat) => {
+    const count =
+      categoryVehicleCounts.get(String(cat._id)) ?? cat.vehicleCount ?? 0;
+    setConfirmState({
+      title: 'Delete Category?',
+      itemName: cat.name,
+      description:
+        'Are you sure you want to delete this category from the storefront?',
+      consequence:
+        count > 0
+          ? `${count} ${count === 1 ? 'vehicle is' : 'vehicles are'} currently assigned to "${cat.name}". Those vehicles will remain in the fleet with this category tag removed.`
+          : 'No vehicles are currently assigned to this category.',
+      confirmLabel: 'Delete Category',
+      busyLabel: 'Deleting...',
+      variant: 'danger',
+      onConfirm: async () => {
+        await apiFetch(`/api/admin/categories/${cat._id}`, {
+          method: 'DELETE',
+        });
+        setCategories((prev) => prev.filter((c) => c._id !== cat._id));
+        setVehicles((prev) =>
+          prev.map((v) => ({
+            ...v,
+            categories: (v.categories || []).filter(
+              (c) => String(c?._id || c) !== String(cat._id)
+            ),
+          }))
+        );
+        await notifyDataUpdated();
+        showToast(`Deleted category "${cat.name}".`);
+      },
+    });
   };
 
   const handleCreateService = async (e) => {
@@ -355,11 +469,13 @@ export function AdminDashboardPage() {
       await notifyDataUpdated();
       showToast(`Added service "${res.service.name}".`);
     } catch (err) {
-      setError(err.message);
+      showError(err.message);
     }
   };
 
   const handleToggleService = async (service) => {
+    if (pendingIds.has(service._id)) return;
+    setRowBusy(service._id, true);
     try {
       const res = await apiFetch(`/api/admin/services/${service._id}`, {
         method: 'PUT',
@@ -375,20 +491,32 @@ export function AdminDashboardPage() {
           : `Service "${service.name}" hidden.`
       );
     } catch (err) {
-      setError(err.message);
+      showError(err.message);
+    } finally {
+      setRowBusy(service._id, false);
     }
   };
 
-  const handleDeleteService = async (service) => {
-    if (!window.confirm(`Delete service "${service.name}"?`)) return;
-    try {
-      await apiFetch(`/api/admin/services/${service._id}`, { method: 'DELETE' });
-      setServices((prev) => prev.filter((s) => s._id !== service._id));
-      await notifyDataUpdated();
-      showToast(`Deleted service "${service.name}".`);
-    } catch (err) {
-      setError(err.message);
-    }
+  const requestDeleteService = (service) => {
+    setConfirmState({
+      title: 'Delete Rental Service?',
+      itemName: service.name,
+      description:
+        'Are you sure you want to permanently remove this service card from the storefront?',
+      consequence:
+        'Customers will no longer see this service in the Services section or Quick Enquiry list.',
+      confirmLabel: 'Delete Service',
+      busyLabel: 'Deleting...',
+      variant: 'danger',
+      onConfirm: async () => {
+        await apiFetch(`/api/admin/services/${service._id}`, {
+          method: 'DELETE',
+        });
+        setServices((prev) => prev.filter((s) => s._id !== service._id));
+        await notifyDataUpdated();
+        showToast(`Deleted service "${service.name}".`);
+      },
+    });
   };
 
   const handleUploadWeChatQr = async (e) => {
@@ -397,8 +525,6 @@ export function AdminDashboardPage() {
     if (!file) return;
 
     setUploadingWeChatQr(true);
-    setError('');
-    setNotice('');
     try {
       const optimized = await optimizeImageForUpload(file, {
         maxWidth: 800,
@@ -422,7 +548,7 @@ export function AdminDashboardPage() {
       }));
       showToast('WeChat QR image uploaded. Click "Save Settings" to publish.');
     } catch (err) {
-      setError(err.message || 'Could not upload WeChat QR image.');
+      showError(err.message || 'Could not upload WeChat QR image.');
     } finally {
       setUploadingWeChatQr(false);
     }
@@ -431,7 +557,6 @@ export function AdminDashboardPage() {
   const handleVerifyTelegram = async () => {
     setVerifyingTelegram(true);
     setTelegramVerifyResult(null);
-    setError('');
     try {
       const res = await apiFetch('/api/admin/settings/verify-telegram', {
         method: 'POST',
@@ -456,8 +581,6 @@ export function AdminDashboardPage() {
   const handleSaveSettings = async (e, overrides = null) => {
     e?.preventDefault();
     setSavingSettings(true);
-    setError('');
-    setNotice('');
 
     const payload = {
       ...settingsForm,
@@ -477,33 +600,7 @@ export function AdminDashboardPage() {
         body: payload,
       });
       const saved = res.settings;
-      setSettingsForm({
-        companyName: saved.companyName,
-        tagline: saved.tagline,
-        whatsappNumber: saved.whatsappNumber ? `+${saved.whatsappNumber}` : '',
-        whatsappLink: saved.whatsappLink || '',
-        whatsappMode: saved.whatsappMode || 'number',
-        whatsappEnabled: saved.whatsappEnabled !== false,
-        telegramHandle: saved.telegramDisplay || '',
-        telegramLink: saved.telegramLink || '',
-        telegramMode: saved.telegramMode || 'handle',
-        telegramEnabled: saved.telegramEnabled !== false,
-        wechatId: saved.wechatId || '',
-        wechatLink: saved.wechatLink || '',
-        wechatMode: saved.wechatMode || 'id',
-        wechatEnabled: saved.wechatEnabled !== false,
-        wechatQrUrl: saved.wechatQrUrl || '',
-        wechatQrStorageProvider: saved.wechatQrStorageProvider || '',
-        wechatQrMediaId: saved.wechatQrMediaId || '',
-        heroHeadline: saved.heroHeadline,
-        heroSubheadline: saved.heroSubheadline,
-        supportGreeting: saved.supportGreeting,
-      });
-      setChannelStatus({
-        whatsapp: Boolean(saved.whatsappConfigured),
-        telegram: Boolean(saved.telegramConfigured),
-        wechat: Boolean(saved.wechatConfigured),
-      });
+      applySettingsPayload(saved);
       await notifyDataUpdated();
 
       const activeLabels = [
@@ -524,10 +621,41 @@ export function AdminDashboardPage() {
           : 'Settings saved. All booking buttons are disabled until at least one channel is enabled and configured.'
       );
     } catch (err) {
-      setError(err.message || 'Could not update settings.');
+      showError(err.message || 'Could not update settings.');
     } finally {
       setSavingSettings(false);
     }
+  };
+
+  const requestClearAllChannels = () => {
+    setConfirmState({
+      title: 'Clear All Booking Channels?',
+      itemName: 'WhatsApp · Telegram · WeChat',
+      description:
+        'This clears all saved numbers, usernames, direct links, and pauses instant enquiries across the storefront.',
+      consequence: settingsForm.wechatQrUrl
+        ? 'Your uploaded WeChat QR code image will also be permanently deleted from storage.'
+        : 'Customers will not see active messaging channels until you re-enable and save at least one channel.',
+      confirmLabel: 'Clear All Channels',
+      busyLabel: 'Clearing...',
+      variant: 'warning',
+      onConfirm: async () => {
+        await handleSaveSettings(null, {
+          whatsappNumber: '',
+          whatsappLink: '',
+          whatsappEnabled: false,
+          telegramHandle: '',
+          telegramLink: '',
+          telegramEnabled: false,
+          wechatId: '',
+          wechatLink: '',
+          wechatEnabled: false,
+          wechatQrUrl: '',
+          wechatQrStorageProvider: '',
+          wechatQrMediaId: '',
+        });
+      },
+    });
   };
 
   const previewDigits = normalizeWhatsAppNumber(settingsForm.whatsappNumber);
@@ -696,47 +824,6 @@ export function AdminDashboardPage() {
           </div>
         </div>
 
-        {/* Feedback Banners */}
-        {notice ? (
-          <div
-            role="status"
-            data-testid="admin-toast-notice"
-            className="flex items-center justify-between gap-2 rounded-xl border border-emerald-500/35 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-600 dark:text-emerald-300"
-          >
-            <span className="flex items-center gap-2">
-              <CheckCircle2 className="h-4 w-4 shrink-0" />
-              {notice}
-            </span>
-            <button
-              type="button"
-              onClick={() => setNotice('')}
-              className="text-xs underline cursor-pointer"
-            >
-              Dismiss
-            </button>
-          </div>
-        ) : null}
-
-        {error ? (
-          <div
-            role="alert"
-            data-testid="admin-error-banner"
-            className="flex items-center justify-between gap-2 rounded-xl border border-red-500/35 bg-red-500/10 px-4 py-3 text-sm text-red-500 dark:text-red-300"
-          >
-            <span className="flex items-center gap-2">
-              <AlertCircle className="h-4 w-4 shrink-0" />
-              {error}
-            </span>
-            <button
-              type="button"
-              onClick={() => setError('')}
-              className="text-xs underline cursor-pointer"
-            >
-              Dismiss
-            </button>
-          </div>
-        ) : null}
-
         {/* Section Tabs */}
         <div
           role="tablist"
@@ -820,6 +907,7 @@ export function AdminDashboardPage() {
                     vehicle.photos?.find((p) => p.isPrimary) ||
                     vehicle.photos?.[0] ||
                     null;
+                  const rowBusy = pendingIds.has(vehicle._id);
 
                   return (
                     <div
@@ -831,6 +919,7 @@ export function AdminDashboardPage() {
                         <VehiclePhoto
                           src={primaryPhoto?.url}
                           alt={vehicle.name}
+                          deliveryWidth={320}
                           className="h-full w-full object-cover"
                         />
                       </div>
@@ -884,9 +973,10 @@ export function AdminDashboardPage() {
                       <div className="flex flex-wrap items-center gap-2 shrink-0">
                         <button
                           type="button"
+                          disabled={rowBusy}
                           onClick={() => handleTogglePublish(vehicle)}
                           data-testid={`toggle-publish-${vehicle.slug}`}
-                          className="inline-flex items-center gap-1.5 rounded-full border border-[var(--border-gold)] bg-[var(--bg-pill)] px-3 py-1.5 text-xs font-medium text-[var(--text-primary)] hover:bg-[var(--gold-soft-bg)] cursor-pointer"
+                          className="inline-flex items-center gap-1.5 rounded-full border border-[var(--border-gold)] bg-[var(--bg-pill)] px-3 py-1.5 text-xs font-medium text-[var(--text-primary)] hover:bg-[var(--gold-soft-bg)] disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
                         >
                           {vehicle.isPublished ? (
                             <>
@@ -903,13 +993,14 @@ export function AdminDashboardPage() {
 
                         <button
                           type="button"
+                          disabled={rowBusy}
                           onClick={() => handleToggleFeatured(vehicle)}
                           title={
                             vehicle.isFeatured
                               ? 'Remove from Hero Banner'
                               : 'Feature in Hero Banner'
                           }
-                          className={`flex h-8 w-8 items-center justify-center rounded-full border cursor-pointer ${
+                          className={`flex h-8 w-8 items-center justify-center rounded-full border disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer ${
                             vehicle.isFeatured
                               ? 'border-[var(--gold-bright)] bg-[var(--gold-soft-bg)] text-[var(--gold-accent)]'
                               : 'border-[var(--border-subtle)] text-[var(--text-muted)] hover:text-[var(--gold-accent)]'
@@ -920,12 +1011,13 @@ export function AdminDashboardPage() {
 
                         <button
                           type="button"
+                          disabled={rowBusy}
                           onClick={() => {
                             setEditingVehicle(vehicle);
                             setShowVehicleModal(true);
                           }}
                           data-testid={`edit-vehicle-${vehicle.slug}`}
-                          className="inline-flex items-center gap-1 rounded-full border border-[var(--border-subtle)] px-3 py-1.5 text-xs font-medium text-[var(--text-secondary)] hover:border-[var(--border-gold)] hover:text-[var(--text-primary)] cursor-pointer"
+                          className="inline-flex items-center gap-1 rounded-full border border-[var(--border-subtle)] px-3 py-1.5 text-xs font-medium text-[var(--text-secondary)] hover:border-[var(--border-gold)] hover:text-[var(--text-primary)] disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
                         >
                           <Edit3 className="h-3.5 w-3.5" />
                           <span>Edit</span>
@@ -933,10 +1025,11 @@ export function AdminDashboardPage() {
 
                         <button
                           type="button"
-                          onClick={() => handleDeleteVehicle(vehicle)}
+                          disabled={rowBusy}
+                          onClick={() => requestDeleteVehicle(vehicle)}
                           data-testid={`delete-vehicle-${vehicle.slug}`}
                           aria-label={`Delete ${vehicle.name}`}
-                          className="flex h-8 w-8 items-center justify-center rounded-full border border-red-500/25 text-red-500 hover:bg-red-500/10 cursor-pointer"
+                          className="flex h-8 w-8 items-center justify-center rounded-full border border-red-500/25 text-red-500 hover:bg-red-500/10 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
                         >
                           <Trash2 className="h-3.5 w-3.5" />
                         </button>
@@ -1050,7 +1143,10 @@ export function AdminDashboardPage() {
                             {cat.name}
                           </h3>
                           <span className="rounded-full bg-[var(--bg-pill)] px-2 py-0.5 text-[11px] text-[var(--text-muted)]">
-                            {cat.vehicleCount || 0} vehicles
+                            {categoryVehicleCounts.get(String(cat._id)) ??
+                              cat.vehicleCount ??
+                              0}{' '}
+                            vehicles
                           </span>
                         </div>
                         {cat.description ? (
@@ -1074,7 +1170,8 @@ export function AdminDashboardPage() {
                         </button>
                         <button
                           type="button"
-                          onClick={() => handleDeleteCategory(cat)}
+                          onClick={() => requestDeleteCategory(cat)}
+                          data-testid={`delete-category-${cat.slug}`}
                           aria-label={`Delete ${cat.name}`}
                           className="flex h-8 w-8 items-center justify-center rounded-full border border-red-500/25 text-red-500 hover:bg-red-500/10 cursor-pointer"
                         >
@@ -1201,16 +1298,19 @@ export function AdminDashboardPage() {
                   <div className="flex items-center gap-2 shrink-0">
                     <button
                       type="button"
+                      disabled={pendingIds.has(service._id)}
                       onClick={() => handleToggleService(service)}
-                      className="rounded-full border border-[var(--border-gold)] px-3 py-1.5 text-xs font-medium cursor-pointer"
+                      className="rounded-full border border-[var(--border-gold)] px-3 py-1.5 text-xs font-medium disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
                     >
                       {service.isActive ? 'Hide' : 'Show'}
                     </button>
                     <button
                       type="button"
-                      onClick={() => handleDeleteService(service)}
+                      disabled={pendingIds.has(service._id)}
+                      onClick={() => requestDeleteService(service)}
+                      data-testid={`delete-service-${service.slug}`}
                       aria-label={`Delete ${service.name}`}
-                      className="flex h-8 w-8 items-center justify-center rounded-full border border-red-500/25 text-red-500 hover:bg-red-500/10 cursor-pointer"
+                      className="flex h-8 w-8 items-center justify-center rounded-full border border-red-500/25 text-red-500 hover:bg-red-500/10 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
                     >
                       <Trash2 className="h-3.5 w-3.5" />
                     </button>
@@ -1236,8 +1336,8 @@ export function AdminDashboardPage() {
                   Manage your WhatsApp, Telegram, and WeChat details from one
                   place. Changing a channel updates every booking button across
                   the storefront (Floating Dock, Header, Hero, Vehicle Cards,
-                  Specs Modal, Quick Enquiry, and Services). Leaving a channel
-                  blank disables only that channel.
+                  Vehicle Details Page, Quick Enquiry, and Services). Leaving a
+                  channel blank disables only that channel.
                 </p>
 
                 <div className="mt-5 space-y-5">
@@ -2108,24 +2208,9 @@ export function AdminDashboardPage() {
                 <button
                   type="button"
                   disabled={savingSettings}
-                  onClick={() =>
-                    handleSaveSettings(null, {
-                      whatsappNumber: '',
-                      whatsappLink: '',
-                      whatsappEnabled: false,
-                      telegramHandle: '',
-                      telegramLink: '',
-                      telegramEnabled: false,
-                      wechatId: '',
-                      wechatLink: '',
-                      wechatEnabled: false,
-                      wechatQrUrl: '',
-                      wechatQrStorageProvider: '',
-                      wechatQrMediaId: '',
-                    })
-                  }
+                  onClick={requestClearAllChannels}
                   data-testid="admin-clear-whatsapp-btn"
-                  className="rounded-full border border-red-500/35 px-4 py-2 text-xs font-medium text-red-500 hover:bg-red-500/10 cursor-pointer"
+                  className="rounded-full border border-red-500/35 px-4 py-2 text-xs font-medium text-red-500 hover:bg-red-500/10 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
                 >
                   Clear All Channels (Disable Enquiries)
                 </button>
@@ -2155,12 +2240,38 @@ export function AdminDashboardPage() {
           onSaved={async (savedVehicle) => {
             setShowVehicleModal(false);
             setEditingVehicle(null);
-            await loadDashboardData();
+            setVehicles((prev) => {
+              const exists = prev.some((v) => v._id === savedVehicle._id);
+              const next = exists
+                ? prev.map((v) =>
+                    v._id === savedVehicle._id ? savedVehicle : v
+                  )
+                : [savedVehicle, ...prev];
+              return sortAdminVehicles(next);
+            });
             await notifyDataUpdated();
             showToast(`Saved "${savedVehicle.name}".`);
           }}
         />
       ) : null}
+
+      <ConfirmDialog
+        open={Boolean(confirmState)}
+        title={confirmState?.title || ''}
+        itemName={confirmState?.itemName || ''}
+        description={confirmState?.description || ''}
+        consequence={confirmState?.consequence || ''}
+        confirmLabel={confirmState?.confirmLabel || 'Confirm'}
+        busyLabel={confirmState?.busyLabel || 'Working...'}
+        variant={confirmState?.variant || 'danger'}
+        busy={confirmBusy}
+        onCancel={() => {
+          if (!confirmBusy) setConfirmState(null);
+        }}
+        onConfirm={handleExecuteConfirm}
+      />
+
+      <AdminToastStack toasts={toasts} onDismiss={dismissToast} />
     </div>
   );
 }

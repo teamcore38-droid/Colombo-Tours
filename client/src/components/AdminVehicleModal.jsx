@@ -7,7 +7,7 @@ import {
   Upload,
   X,
 } from 'lucide-react';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { apiFetch } from '../lib/api';
 import { formatFileSize, optimizeImageForUpload } from '../lib/imageOptimize';
 import { VehiclePhoto } from './VehiclePhoto';
@@ -60,6 +60,27 @@ export function AdminVehicleModal({
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const [uploadInfo, setUploadInfo] = useState('');
+
+  useEffect(() => {
+    const prevOverflow =
+      typeof document !== 'undefined' ? document.body.style.overflow : '';
+    if (typeof document !== 'undefined') {
+      document.body.style.overflow = 'hidden';
+    }
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape' && !saving && !uploading) {
+        e.preventDefault();
+        onClose?.();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+      if (typeof document !== 'undefined') {
+        document.body.style.overflow = prevOverflow;
+      }
+    };
+  }, [saving, uploading, onClose]);
 
   const toggleCategory = (catId) => {
     setForm((prev) => {
@@ -235,7 +256,12 @@ export function AdminVehicleModal({
       aria-labelledby="admin-vehicle-modal-title"
       className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-5"
     >
-      <div className="fixed inset-0 bg-black/75 backdrop-blur-xs" onClick={onClose} />
+      <div
+        className="fixed inset-0 bg-black/75 backdrop-blur-xs"
+        onClick={() => {
+          if (!saving && !uploading) onClose?.();
+        }}
+      />
 
       <div className="relative z-10 flex max-h-[92vh] w-full max-w-3xl flex-col overflow-hidden rounded-2xl border border-[var(--border-gold)] bg-[var(--bg-surface)] shadow-2xl">
         <div className="flex items-center justify-between border-b border-[var(--border-subtle)] px-5 py-4">

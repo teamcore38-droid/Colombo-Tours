@@ -12,6 +12,13 @@ import { AdminUser } from '../models/AdminUser.js';
 
 const router = Router();
 
+router.use((_req, res, next) => {
+  res.set('Cache-Control', 'no-store, no-cache, must-revalidate, private');
+  res.set('Pragma', 'no-cache');
+  res.set('X-Robots-Tag', 'noindex, nofollow, noarchive');
+  return next();
+});
+
 const loginLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   limit: env.isTest ? 1000 : 20,
