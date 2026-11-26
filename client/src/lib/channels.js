@@ -378,15 +378,11 @@ export function buildVehicleEnquiryMessage(vehicleOrName, options = {}) {
       'a vehicle'
   ).trim();
 
-  const details =
-    String(options.details || '').trim() ||
-    formatVehicleDetailsSummary(vehicleObj);
   const vehicleUrl =
     String(options.vehicleUrl || '').trim() ||
     buildVehicleShareUrl(vehicleObj?.slug || options.slug || '', options.origin);
 
   const hasExtras =
-    Boolean(details) ||
     Boolean(vehicleUrl) ||
     Boolean(options.pickupLocation?.trim()) ||
     Boolean(options.pickupDate?.trim()) ||
@@ -398,9 +394,6 @@ export function buildVehicleEnquiryMessage(vehicleOrName, options = {}) {
   }
 
   const lines = [`Hello Colombo Tours, I’m interested in renting the ${name}.`];
-  if (details) {
-    lines.push(`Details: ${details}`);
-  }
   if (vehicleUrl) {
     lines.push(`Link: ${vehicleUrl}`);
   }

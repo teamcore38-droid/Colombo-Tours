@@ -643,7 +643,7 @@ function VehicleBookingCard({
           </span>
         </h2>
         <p className="mt-1 text-xs leading-relaxed text-[var(--text-muted)]">
-          Choose WhatsApp, Telegram, or WeChat — this vehicle&apos;s details and
+          Choose WhatsApp, Telegram, or WeChat — this vehicle&apos;s name and
           link are automatically included in your message.
         </p>
       </div>

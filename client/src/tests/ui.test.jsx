@@ -252,11 +252,11 @@ describe('Colombo Tours Storefront UI', () => {
     expect(mercBtn.getAttribute('href')).toContain('https://wa.me/94771234567?text=');
     const decodedMercWa = decodeURIComponent(mercBtn.getAttribute('href'));
     expect(decodedMercWa).toContain('2024 Mercedes-Benz S-Class');
-    expect(decodedMercWa).toContain('S 500 AMG');
-    expect(decodedMercWa).toContain('5 Seats');
+    expect(decodedMercWa).not.toContain('Details:');
+    expect(decodedMercWa).not.toContain('5 Seats');
     expect(decodedMercWa).toContain('/v/2024-mercedes-benz-s-class');
 
-    // Telegram direct vehicle enquiry link also includes details and short /v/ vehicle link
+    // Telegram direct vehicle enquiry link includes vehicle name and short /v/ link without Details line
     const mercTgBtn = screen.getByTestId(
       'vehicle-telegram-2024-mercedes-benz-s-class'
     );
@@ -266,9 +266,10 @@ describe('Colombo Tours Storefront UI', () => {
     );
     const decodedMercTg = decodeURIComponent(mercTgBtn.getAttribute('href'));
     expect(decodedMercTg).toContain('2024 Mercedes-Benz S-Class');
+    expect(decodedMercTg).not.toContain('Details:');
     expect(decodedMercTg).toContain('/v/2024-mercedes-benz-s-class');
 
-    // WeChat button opens concierge modal with WeChat ID, QR code, vehicle details & clean clickable "Link"
+    // WeChat button opens concierge modal with WeChat ID, QR code, vehicle name & clean clickable "Link"
     await user.click(
       screen.getByTestId('vehicle-wechat-2024-mercedes-benz-s-class')
     );
@@ -281,6 +282,9 @@ describe('Colombo Tours Storefront UI', () => {
     expect(within(wcModal).getByTestId('wechat-modal-message')).toHaveTextContent(
       '2024 Mercedes-Benz S-Class'
     );
+    expect(
+      within(wcModal).getByTestId('wechat-modal-message').textContent
+    ).not.toContain('Details:');
     const wcVehicleLink = within(wcModal).getByTestId('wechat-modal-vehicle-link');
     expect(wcVehicleLink).toHaveTextContent('Link');
     expect(wcVehicleLink.getAttribute('href')).toContain(
@@ -326,7 +330,7 @@ describe('Colombo Tours Storefront UI', () => {
     expect(qeBtn.tagName).toBe('A');
     const decodedQe = decodeURIComponent(qeBtn.getAttribute('href'));
     expect(decodedQe).toContain('Land Rover Defender 110');
-    expect(decodedQe).toContain('Defender HSE');
+    expect(decodedQe).not.toContain('Details:');
     expect(decodedQe).toContain('/v/land-rover-defender-110');
     expect(decodedQe).toContain('Pickup location: Colombo City');
     expect(decodedQe).toContain('Pickup date: 2099-05-10');

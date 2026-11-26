@@ -200,7 +200,7 @@ describe('WhatsApp helpers', () => {
     expect(wcDisabled.active).toBe(false);
   });
 
-  it('builds safe shareable vehicle links and includes vehicle details in booking messages', () => {
+  it('builds safe shareable vehicle links and omits verbose Details line in booking messages', () => {
     expect(sanitizeVehicleSlug('2024-bmw-i7-xdrive60')).toBe(
       '2024-bmw-i7-xdrive60'
     );
@@ -238,11 +238,13 @@ describe('WhatsApp helpers', () => {
       origin: 'https://colombo-tours.vercel.app',
     });
     expect(msg).toContain('2024 BMW i7 xDrive60');
-    expect(msg).toContain(
-      'Details: BMW i7 Luxury Flagship Sedan · 4 Seats · Automatic · 3 Suitcases · Electric · Chauffeur Included'
-    );
+    expect(msg).not.toContain('Details:');
+    expect(msg).not.toContain('4 Seats');
     expect(msg).toContain(
       'Link: https://colombo-tours.vercel.app/v/2024-bmw-i7-xdrive60'
+    );
+    expect(msg).toContain(
+      'Could you confirm availability and share the rate?'
     );
 
     // Safe link line parser accepts only valid vehicle share URLs
