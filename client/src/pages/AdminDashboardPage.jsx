@@ -21,6 +21,7 @@ import {
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { AdminBackupCard } from '../components/AdminBackupCard';
+import { AdminSecurityCard } from '../components/AdminSecurityCard';
 import { AdminToastStack } from '../components/AdminToastStack';
 import { AdminVehicleModal } from '../components/AdminVehicleModal';
 import { BrandLogo } from '../components/BrandLogo';
@@ -2231,6 +2232,16 @@ export function AdminDashboardPage() {
                 </button>
               </div>
             </form>
+
+            <AdminSecurityCard
+              admin={admin}
+              onAdminUpdated={(updatedAdmin) => setAdmin(updatedAdmin)}
+              onRequestConfirm={setConfirmState}
+              onSignedOutAll={() => navigate('/admin/login', { replace: true })}
+              onSessionExpired={() => navigate('/admin/login', { replace: true })}
+              showToast={showToast}
+              showError={showError}
+            />
 
             <AdminBackupCard
               onRequestConfirm={setConfirmState}

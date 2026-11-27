@@ -14,7 +14,8 @@ Mobile-first, responsive car rental storefront and staff admin dashboard built f
   - Optional pickup location, pickup/return dates (validated against past and inverted ranges), and chauffeur preference in Quick Enquiry are automatically included in the message.
   - Managed via a single global WhatsApp number in the Admin Dashboard. All WhatsApp buttons remain cleanly disabled until a valid international number is saved.
 - **Secure Staff Admin Dashboard (`/admin`)**:
-  - JWT `HttpOnly` cookie authentication with bcrypt password hashing and login rate limiting.
+  - Hardened JWT `HttpOnly; SameSite=Strict` cookie authentication (`HS256` pinned) with bcrypt password hashing (cost 12), server-side token revocation on logout, MongoDB-backed serverless rate limiting + per-account lockout, and same-origin CSRF protection.
+  - Self-service **Change Password** & **Sign Out All Devices** controls under **Settings → Account Security**, plus an interactive CLI reset tool (`npm run reset-password`).
   - Add, edit, publish, unpublish, feature, and delete vehicles.
   - Client-side WebP photo optimization before upload; serverless-safe storage via **Cloudinary** (recommended, with automatic CDN optimization and delete cleanup), **Vercel Blob** (optional), or **MongoDB Media** fallback (`/api/media/:id` with immutable HTTP caching).
   - Manage categories, rental services, storefront headlines, and the global WhatsApp number.

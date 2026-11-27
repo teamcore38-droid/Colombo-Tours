@@ -2,7 +2,7 @@ import { Router } from 'express';
 import rateLimit from 'express-rate-limit';
 import mongoose from 'mongoose';
 import { env } from '../config/env.js';
-import { requireAdmin } from '../middleware/auth.js';
+import { requireAdmin, serializeAdmin } from '../middleware/auth.js';
 import { imageUpload } from '../middleware/upload.js';
 import { Category } from '../models/Category.js';
 import { Service } from '../models/Service.js';
@@ -129,9 +129,9 @@ function sanitizePhotos(rawPhotos) {
     if (!item) continue;
     const url = String(item.url || '').trim();
     if (!url) continue;
-    // Allow relative site/API paths or http(s) URLs only (block javascript: / data: XSS)
+    // Allow relative site/API paths (never protocol-relative //) or http(s) URLs only
     const isSafeUrl =
-      url.startsWith('/') ||
+      (url.startsWith('/') && !url.startsWith('//')) ||
       /^https?:\/\/[^\s]+$/i.test(url);
     if (!isSafeUrl) continue;
 
@@ -230,12 +230,7 @@ router.get('/bootstrap', async (req, res, next) => {
     }));
 
     return res.json({
-      admin: {
-        id: String(req.admin._id),
-        email: req.admin.email,
-        name: req.admin.name,
-        role: req.admin.role,
-      },
+      admin: serializeAdmin(req.admin),
       vehicles,
       categories: enrichedCategories,
       services,
@@ -1216,6 +1211,18 @@ router.post('/restore', backupLimiter, async (req, res, next) => {
         ? req.body.backup
         : req.body;
     const result = await restoreBackupSnapshot(backupPayload, { mode });
+    if (!env.isTest) {
+      console.info(
+        '[Security Audit]',
+        JSON.stringify({
+          event: 'backup_restored',
+          mode: result.mode,
+          adminId: String(req.admin?._id || ''),
+          counts: result.restored,
+          timestamp: new Date().toISOString(),
+        })
+      );
+    }
     return res.json(result);
   } catch (error) {
     return next(error);

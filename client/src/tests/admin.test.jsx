@@ -458,4 +458,128 @@ describe('Admin Portal Security, Confirmation Modals & Floating Toasts', () => {
       window.history.pushState({}, '', originalPathname);
     }
   });
+
+  it('supports changing staff password with policy validation, wrong-password feedback, and confirmed Sign Out All Devices', async () => {
+    const user = userEvent.setup();
+    const payload = createAdminBootstrapPayload();
+    let changePasswordCalls = 0;
+
+    const fetchMock = vi.fn(async (url, opts = {}) => {
+      const method = (opts.method || 'GET').toUpperCase();
+      if (url === '/api/admin/bootstrap' && method === 'GET') {
+        return jsonResponse(payload);
+      }
+      if (url === '/api/auth/change-password' && method === 'POST') {
+        changePasswordCalls += 1;
+        const body = JSON.parse(opts.body);
+        if (body.currentPassword === 'WrongCurrent123!') {
+          return jsonResponse(
+            {
+              error: 'Current password is incorrect.',
+              code: 'INVALID_CURRENT_PASSWORD',
+            },
+            401
+          );
+        }
+        return jsonResponse({
+          ok: true,
+          message: 'Password updated. All other sessions have been signed out.',
+          admin: {
+            ...payload.admin,
+            passwordChangedAt: '2026-11-27T14:00:00.000Z',
+          },
+        });
+      }
+      if (url === '/api/auth/logout-all' && method === 'POST') {
+        return jsonResponse({ ok: true });
+      }
+      return jsonResponse({ error: `Unexpected ${method} ${url}` }, 404);
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    const originalPathname = window.location.pathname;
+    window.history.pushState({}, '', '/admin');
+
+    try {
+      render(
+        <ThemeProvider>
+          <SiteProvider>
+            <MemoryRouter initialEntries={['/admin']}>
+              <Routes>
+                <Route path="/admin" element={<AdminDashboardPage />} />
+                <Route
+                  path="/admin/login"
+                  element={<div data-testid="login-redirect-screen">Login Screen</div>}
+                />
+              </Routes>
+            </MemoryRouter>
+          </SiteProvider>
+        </ThemeProvider>
+      );
+
+      await waitFor(() =>
+        expect(screen.getByTestId('admin-tab-settings')).toBeInTheDocument()
+      );
+      await user.click(screen.getByTestId('admin-tab-settings'));
+
+      const securityCard = screen.getByTestId('admin-security-card');
+      expect(securityCard).toHaveTextContent('staff@colombotours.lk');
+
+      const currentInput = screen.getByTestId('admin-current-password-input');
+      const newInput = screen.getByTestId('admin-new-password-input');
+      const confirmInput = screen.getByTestId('admin-confirm-password-input');
+      const submitBtn = screen.getByTestId('admin-change-password-submit');
+
+      // Disabled until strong password + match are entered
+      expect(submitBtn).toBeDisabled();
+
+      // Wrong current password displays inline error without kicking out of dashboard
+      await user.type(currentInput, 'WrongCurrent123!');
+      await user.type(newInput, 'Luxury#Colombo2026!');
+      await user.type(confirmInput, 'Luxury#Colombo2026!');
+      expect(submitBtn).toBeEnabled();
+
+      await user.click(submitBtn);
+      await waitFor(() =>
+        expect(screen.getByTestId('admin-change-password-error')).toHaveTextContent(
+          'Current password is incorrect.'
+        )
+      );
+      expect(screen.queryByTestId('login-redirect-screen')).not.toBeInTheDocument();
+
+      // Correct current password succeeds, clears form, and shows success toast
+      await user.clear(currentInput);
+      await user.type(currentInput, 'OldValid#Pass123!');
+      await user.click(submitBtn);
+
+      await waitFor(() =>
+        expect(screen.getByTestId('admin-toast-stack')).toHaveTextContent(
+          /Password updated\. All other sessions have been signed out\./i
+        )
+      );
+      expect(changePasswordCalls).toBe(2);
+      expect(currentInput).toHaveValue('');
+      expect(newInput).toHaveValue('');
+      expect(confirmInput).toHaveValue('');
+
+      // Sign Out All Devices requires branded confirmation modal and redirects to /admin/login
+      await user.click(screen.getByTestId('admin-logout-all-btn'));
+      const dialog = screen.getByTestId('admin-confirm-dialog');
+      expect(within(dialog).getByTestId('confirm-dialog-title')).toHaveTextContent(
+        'Sign Out All Devices?'
+      );
+      await user.click(within(dialog).getByTestId('confirm-dialog-confirm'));
+
+      await waitFor(() =>
+        expect(screen.getByTestId('login-redirect-screen')).toBeInTheDocument()
+      );
+      expect(
+        fetchMock.mock.calls.some(
+          ([u, o]) => u === '/api/auth/logout-all' && o?.method === 'POST'
+        )
+      ).toBe(true);
+    } finally {
+      window.history.pushState({}, '', originalPathname);
+    }
+  });
 });

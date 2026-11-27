@@ -9,6 +9,7 @@
     "seed": "node src/utils/runSeed.js",
     "backup": "node src/utils/backupCli.js export",
     "restore": "node src/utils/backupCli.js restore",
+    "reset-password": "node src/utils/resetAdminPasswordCli.js",
     "test": "vitest run"
   },
   "dependencies": {

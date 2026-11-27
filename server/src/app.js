@@ -7,6 +7,7 @@ import mongoose from 'mongoose';
 import multer from 'multer';
 import { connectDB } from './config/db.js';
 import { env } from './config/env.js';
+import { createSameOriginGuard } from './middleware/csrf.js';
 import adminRoutes from './routes/admin.js';
 import authRoutes from './routes/auth.js';
 import mediaRoutes from './routes/media.js';
@@ -109,11 +110,13 @@ export function createApp({ skipDbMiddleware = false } = {}) {
     });
   }
 
+  const sameOriginGuard = createSameOriginGuard(allowedOrigins);
+
   app.use('/v', createShareRouter({ skipDbMiddleware }));
 
-  app.use('/api/auth', authRoutes);
+  app.use('/api/auth', sameOriginGuard, authRoutes);
   app.use('/api/media', mediaRoutes);
-  app.use('/api/admin', adminRoutes);
+  app.use('/api/admin', sameOriginGuard, adminRoutes);
   app.use('/api', publicRoutes);
 
   app.use('/api', (_req, res) => {

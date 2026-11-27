@@ -1,6 +1,7 @@
 import dotenv from 'dotenv';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { isWeakOrPlaceholderSecret } from '../utils/password.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -12,6 +13,10 @@ dotenv.config();
 const isProduction =
   process.env.NODE_ENV === 'production' || process.env.VERCEL === '1';
 
+const defaultCorsOrigins = isProduction
+  ? ''
+  : 'http://localhost:5173,http://127.0.0.1:5173';
+
 export const env = {
   nodeEnv: process.env.NODE_ENV || 'development',
   isProduction,
@@ -22,11 +27,12 @@ export const env = {
   jwtSecret:
     (process.env.JWT_SECRET || '').trim() ||
     (isProduction ? '' : 'colombo-tours-local-dev-secret-change-me'),
-  jwtExpiresIn: process.env.JWT_EXPIRES_IN || '7d',
+  jwtExpiresIn: (process.env.JWT_EXPIRES_IN || '24h').trim(),
   adminEmail: (process.env.ADMIN_EMAIL || 'admin@colombotours.lk')
     .trim()
     .toLowerCase(),
-  adminPassword: process.env.ADMIN_PASSWORD || 'ChangeMe123!',
+  adminPassword:
+    process.env.ADMIN_PASSWORD || (isProduction ? '' : 'ChangeMe123!'),
   adminName: (process.env.ADMIN_NAME || 'Colombo Tours Staff').trim(),
   defaultWhatsappNumber: (process.env.DEFAULT_WHATSAPP_NUMBER || '').trim(),
   defaultTelegramHandle: (process.env.DEFAULT_TELEGRAM_HANDLE || '').trim(),
@@ -40,19 +46,28 @@ export const env = {
     process.env.CLOUDINARY_FOLDER || 'colombo-tours/vehicles'
   ).trim(),
   blobToken: (process.env.BLOB_READ_WRITE_TOKEN || '').trim(),
-  corsOrigins: (
-    process.env.CORS_ORIGINS || 'http://localhost:5173,http://127.0.0.1:5173'
-  )
+  corsOrigins: (process.env.CORS_ORIGINS ?? defaultCorsOrigins)
     .split(',')
     .map((origin) => origin.trim())
     .filter(Boolean),
 };
 
-export function assertCriticalEnv() {
-  if (env.isProduction && !env.jwtSecret) {
+export function validateCriticalEnv(targetEnv = env) {
+  if (!targetEnv.isProduction) return;
+
+  if (!targetEnv.jwtSecret) {
     throw new Error('JWT_SECRET environment variable is required in production.');
   }
-  if (env.isProduction && !env.mongodbUri) {
+  if (isWeakOrPlaceholderSecret(targetEnv.jwtSecret)) {
+    throw new Error(
+      'JWT_SECRET is too weak or still uses a placeholder value. Generate a strong random secret (at least 32 characters).'
+    );
+  }
+  if (!targetEnv.mongodbUri) {
     throw new Error('MONGODB_URI environment variable is required in production.');
   }
+}
+
+export function assertCriticalEnv() {
+  validateCriticalEnv(env);
 }

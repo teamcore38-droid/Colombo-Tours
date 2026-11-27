@@ -1,4 +1,3 @@
-import bcrypt from 'bcryptjs';
 import { env } from '../config/env.js';
 import { AdminUser } from '../models/AdminUser.js';
 import { Category } from '../models/Category.js';
@@ -13,6 +12,7 @@ import {
   normalizeWeChatId,
   normalizeWhatsAppNumber,
 } from './channels.js';
+import { hashPassword, validateNewPassword } from './password.js';
 
 const STARTER_CATEGORIES = [
   {
@@ -367,12 +367,24 @@ export async function ensureBaseSetup({ forceSeedFleet = false } = {}) {
   // 1. Ensure initial admin user exists
   const adminCount = await AdminUser.countDocuments();
   if (adminCount === 0) {
-    const passwordHash = await bcrypt.hash(env.adminPassword, 10);
+    if (env.isProduction) {
+      const check = validateNewPassword(env.adminPassword, {
+        email: env.adminEmail,
+      });
+      if (!check.valid) {
+        throw new Error(
+          `Cannot bootstrap initial production admin account: ${check.error} Set a strong ADMIN_PASSWORD environment variable (never ChangeMe123!).`
+        );
+      }
+    }
+    const passwordHash = await hashPassword(env.adminPassword);
     await AdminUser.create({
       email: env.adminEmail,
       passwordHash,
       name: env.adminName,
       role: 'admin',
+      isActive: true,
+      tokenVersion: 0,
     });
   }
 

@@ -4,7 +4,9 @@ import request from 'supertest';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { createApp } from '../src/app.js';
 import { connectDB, disconnectDB } from '../src/config/db.js';
+import { validateCriticalEnv } from '../src/config/env.js';
 import { Media } from '../src/models/Media.js';
+import { resetAdminPassword } from '../src/utils/resetAdminPasswordCli.js';
 import { ensureBaseSetup } from '../src/utils/seed.js';
 
 // Minimal valid 1x1 PNG binary (passes magic-byte inspection)
@@ -689,5 +691,263 @@ describe('Colombo Tours API', () => {
     const meAfter = await agent.get('/api/auth/me');
     expect(meAfter.status).toBe(200);
     expect(meAfter.body.admin.email).toBe('admin@colombotours.lk');
+  });
+
+  it('enforces production env validation, CSRF guards, HttpOnly SameSite=Strict cookies, and server-side token revocation', async () => {
+    // 1. Production env validation rejects placeholder/short JWT_SECRET & missing DB URI
+    expect(() =>
+      validateCriticalEnv({
+        isProduction: true,
+        jwtSecret: 'replace-with-a-long-random-secret-key-at-least-32-chars',
+        mongodbUri: 'mongodb+srv://user:pass@cluster.mongodb.net/db',
+      })
+    ).toThrow(/placeholder|weak/i);
+
+    expect(() =>
+      validateCriticalEnv({
+        isProduction: true,
+        jwtSecret: 'short-secret',
+        mongodbUri: 'mongodb+srv://user:pass@cluster.mongodb.net/db',
+      })
+    ).toThrow(/weak|32/i);
+
+    expect(() =>
+      validateCriticalEnv({
+        isProduction: true,
+        jwtSecret: '9f8e7d6c5b4a3210fedcba9876543210a1b2c3d4e5f60718293a4b5c6d7e8f90',
+        mongodbUri: '',
+      })
+    ).toThrow(/MONGODB_URI/i);
+
+    expect(() =>
+      validateCriticalEnv({
+        isProduction: true,
+        jwtSecret: '9f8e7d6c5b4a3210fedcba9876543210a1b2c3d4e5f60718293a4b5c6d7e8f90',
+        mongodbUri: 'mongodb+srv://user:pass@cluster.mongodb.net/db',
+      })
+    ).not.toThrow();
+
+    // 2. Rejects NoSQL object payloads & CSRF cross-origin / form-encoded mutations
+    const nosqlAttempt = await request(app)
+      .post('/api/auth/login')
+      .send({ email: { $ne: '' }, password: { $ne: '' } });
+    expect(nosqlAttempt.status).toBe(400);
+
+    const crossOriginLogin = await request(app)
+      .post('/api/auth/login')
+      .set('Origin', 'https://evil.example')
+      .send({ email: 'admin@colombotours.lk', password: 'ChangeMe123!' });
+    expect(crossOriginLogin.status).toBe(403);
+
+    const crossSiteFetchMeta = await request(app)
+      .post('/api/auth/logout')
+      .set('Sec-Fetch-Site', 'cross-site');
+    expect(crossSiteFetchMeta.status).toBe(403);
+
+    const formCsrf = await request(app)
+      .post('/api/auth/login')
+      .set('Content-Type', 'application/x-www-form-urlencoded')
+      .send('email=admin@colombotours.lk&password=ChangeMe123!');
+    expect(formCsrf.status).toBe(415);
+
+    // 3. Login sets HttpOnly + SameSite=Strict cookie; Bearer tokens are rejected
+    const loginRes = await request(app).post('/api/auth/login').send({
+      email: 'admin@colombotours.lk',
+      password: 'ChangeMe123!',
+    });
+    expect(loginRes.status).toBe(200);
+    const setCookies = loginRes.headers['set-cookie'] || [];
+    const authCookieHeader = setCookies.find((c) => c.startsWith('ct_admin_token='));
+    expect(authCookieHeader).toBeTruthy();
+    expect(authCookieHeader).toMatch(/HttpOnly/i);
+    expect(authCookieHeader).toMatch(/SameSite=Strict/i);
+
+    const rawToken = authCookieHeader.split(';')[0].split('=')[1];
+    const bearerRes = await request(app)
+      .get('/api/auth/me')
+      .set('Authorization', `Bearer ${rawToken}`);
+    expect(bearerRes.status).toBe(401);
+
+    // Cookie works before logout
+    const cookiePair = `ct_admin_token=${rawToken}`;
+    const validMe = await request(app)
+      .get('/api/auth/me')
+      .set('Cookie', cookiePair);
+    expect(validMe.status).toBe(200);
+
+    // 4. Logout revokes that JWT server-side so replaying the stolen cookie fails
+    const logoutRes = await request(app)
+      .post('/api/auth/logout')
+      .set('Cookie', cookiePair);
+    expect(logoutRes.status).toBe(200);
+
+    const replayAfterLogout = await request(app)
+      .get('/api/auth/me')
+      .set('Cookie', cookiePair);
+    expect(replayAfterLogout.status).toBe(401);
+
+    // 5. Logout-all invalidates all concurrent sessions via tokenVersion bump
+    const deviceA = request.agent(app);
+    const deviceB = request.agent(app);
+    expect(
+      (
+        await deviceA.post('/api/auth/login').send({
+          email: 'admin@colombotours.lk',
+          password: 'ChangeMe123!',
+        })
+      ).status
+    ).toBe(200);
+    expect(
+      (
+        await deviceB.post('/api/auth/login').send({
+          email: 'admin@colombotours.lk',
+          password: 'ChangeMe123!',
+        })
+      ).status
+    ).toBe(200);
+
+    expect((await deviceA.post('/api/auth/logout-all')).status).toBe(200);
+    expect((await deviceA.get('/api/auth/me')).status).toBe(401);
+    expect((await deviceB.get('/api/auth/me')).status).toBe(401);
+  });
+
+  it('supports secure password change with session rotation, per-account lockout, and CLI password reset recovery', async () => {
+    const primaryAgent = request.agent(app);
+    const secondaryAgent = request.agent(app);
+
+    // Unauthenticated change-password is rejected
+    const unauthChange = await request(app)
+      .post('/api/auth/change-password')
+      .send({
+        currentPassword: 'ChangeMe123!',
+        newPassword: 'Strong#FleetPassword2026!',
+        confirmPassword: 'Strong#FleetPassword2026!',
+      });
+    expect(unauthChange.status).toBe(401);
+
+    // Sign in on two devices
+    expect(
+      (
+        await primaryAgent.post('/api/auth/login').send({
+          email: 'admin@colombotours.lk',
+          password: 'ChangeMe123!',
+        })
+      ).status
+    ).toBe(200);
+    expect(
+      (
+        await secondaryAgent.post('/api/auth/login').send({
+          email: 'admin@colombotours.lk',
+          password: 'ChangeMe123!',
+        })
+      ).status
+    ).toBe(200);
+
+    // Reject weak password, mismatched confirmation, and wrong current password
+    const weakRes = await primaryAgent.post('/api/auth/change-password').send({
+      currentPassword: 'ChangeMe123!',
+      newPassword: 'short',
+      confirmPassword: 'short',
+    });
+    expect(weakRes.status).toBe(400);
+
+    const mismatchRes = await primaryAgent
+      .post('/api/auth/change-password')
+      .send({
+        currentPassword: 'ChangeMe123!',
+        newPassword: 'Strong#FleetPassword2026!',
+        confirmPassword: 'Different#Password2026!',
+      });
+    expect(mismatchRes.status).toBe(400);
+
+    const wrongCurrentRes = await primaryAgent
+      .post('/api/auth/change-password')
+      .send({
+        currentPassword: 'NotTheRealPassword!',
+        newPassword: 'Strong#FleetPassword2026!',
+        confirmPassword: 'Strong#FleetPassword2026!',
+      });
+    expect(wrongCurrentRes.status).toBe(401);
+    expect(wrongCurrentRes.body.code).toBe('INVALID_CURRENT_PASSWORD');
+
+    // Valid password change updates hash, keeps primary session alive with rotated cookie, and revokes secondary session
+    const newStrongPass = 'Colombo#FleetSecure2026!';
+    const changeRes = await primaryAgent.post('/api/auth/change-password').send({
+      currentPassword: 'ChangeMe123!',
+      newPassword: newStrongPass,
+      confirmPassword: newStrongPass,
+    });
+    expect(changeRes.status).toBe(200);
+    expect(changeRes.body.ok).toBe(true);
+    expect(changeRes.body.admin.passwordChangedAt).toBeTruthy();
+
+    // Primary device remains authenticated with rotated cookie; secondary device is kicked out
+    expect((await primaryAgent.get('/api/auth/me')).status).toBe(200);
+    expect((await secondaryAgent.get('/api/auth/me')).status).toBe(401);
+
+    // Old password no longer works; new password works
+    const oldLogin = await request(app).post('/api/auth/login').send({
+      email: 'admin@colombotours.lk',
+      password: 'ChangeMe123!',
+    });
+    expect(oldLogin.status).toBe(401);
+
+    const newLogin = await request(app).post('/api/auth/login').send({
+      email: 'admin@colombotours.lk',
+      password: newStrongPass,
+    });
+    expect(newLogin.status).toBe(200);
+
+    // Per-account lockout triggers 429 after 5 failed attempts (same behavior for non-existent emails too)
+    for (let i = 0; i < 4; i += 1) {
+      const failRes = await request(app).post('/api/auth/login').send({
+        email: 'admin@colombotours.lk',
+        password: `BadGuess#${i}2026!`,
+      });
+      expect(failRes.status).toBe(401);
+    }
+    const fifthFail = await request(app).post('/api/auth/login').send({
+      email: 'admin@colombotours.lk',
+      password: 'BadGuess#52026!',
+    });
+    expect(fifthFail.status).toBe(429);
+
+    // Even valid password is blocked while locked out
+    const blockedValid = await request(app).post('/api/auth/login').send({
+      email: 'admin@colombotours.lk',
+      password: newStrongPass,
+    });
+    expect(blockedValid.status).toBe(429);
+
+    // Non-existent email also locks out symmetrically (no user-enumeration oracle)
+    for (let i = 0; i < 5; i += 1) {
+      await request(app).post('/api/auth/login').send({
+        email: 'ghost-user@colombotours.lk',
+        password: 'WrongPassword123!',
+      });
+    }
+    const ghostLocked = await request(app).post('/api/auth/login').send({
+      email: 'ghost-user@colombotours.lk',
+      password: 'WrongPassword123!',
+    });
+    expect(ghostLocked.status).toBe(429);
+
+    // CLI resetAdminPassword helper rotates password, invalidates primaryAgent, and clears lockout
+    const cliResetPass = 'CliRecovered#Luxury2026!';
+    const resetResult = await resetAdminPassword({
+      email: 'admin@colombotours.lk',
+      newPassword: cliResetPass,
+    });
+    expect(resetResult.email).toBe('admin@colombotours.lk');
+
+    // Existing primaryAgent session was revoked by CLI reset
+    expect((await primaryAgent.get('/api/auth/me')).status).toBe(401);
+
+    // Account lockout cleared -> immediate login with CLI-reset password succeeds
+    const afterCliLogin = await request(app).post('/api/auth/login').send({
+      email: 'admin@colombotours.lk',
+      password: cliResetPass,
+    });
+    expect(afterCliLogin.status).toBe(200);
   });
 });
